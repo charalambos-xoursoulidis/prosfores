@@ -205,12 +205,19 @@ tbody td{padding:10px 13px;vertical-align:middle}
 
 <!-- MODAL -->
 <div class="overlay" id="modal" style="display:none" onclick="closeOnBg(event)">
-  <div class="modal">
+  <div class="modal" style="max-width:680px">
     <div class="modal-head">
       <h3 id="modal-title">Νέα Προσφορά</h3>
       <button class="modal-close" onclick="closeModal()">×</button>
     </div>
-    <div class="modal-body">
+    <!-- modal tabs -->
+    <div style="display:flex;border-bottom:1px solid var(--border);background:var(--surface)">
+      <div class="mtab active" id="mtab-details" onclick="switchModalTab('details')" style="padding:9px 18px;font-size:12px;font-weight:500;color:var(--accent);border-bottom:2px solid var(--accent);cursor:pointer">📋 Στοιχεία</div>
+      <div class="mtab" id="mtab-log" onclick="switchModalTab('log')" style="padding:9px 18px;font-size:12px;font-weight:500;color:var(--muted);border-bottom:2px solid transparent;cursor:pointer">📝 Ημερολόγιο</div>
+    </div>
+
+    <!-- TAB: ΣΤΟΙΧΕΙΑ -->
+    <div id="mpanel-details" class="modal-body">
       <div class="fg2">
         <div class="fg"><label>Αρ. Προσφοράς</label><input class="fi" id="m-no" placeholder="π.χ. PRO-042"></div>
         <div class="fg"><label>Ημ/νία</label><input class="fi" id="m-date" type="date"></div>
@@ -244,10 +251,33 @@ tbody td{padding:10px 13px;vertical-align:middle}
       </div>
       <div class="fg"><label>Σημειώσεις</label><textarea class="fta" id="m-notes" rows="3" placeholder="Ειδικές απαιτήσεις, εξαιρέσεις..."></textarea></div>
     </div>
+
+    <!-- TAB: ΗΜΕΡΟΛΟΓΙΟ -->
+    <div id="mpanel-log" style="display:none">
+      <div class="modal-body" style="padding-bottom:10px">
+        <div style="display:flex;gap:8px;align-items:flex-start">
+          <div style="flex:0 0 130px">
+            <div class="fg" style="margin-bottom:0"><label>Ημερομηνία</label><input class="fi" id="log-date" type="date"></div>
+          </div>
+          <div style="flex:1">
+            <div class="fg" style="margin-bottom:0"><label>Παρατήρηση / Πορεία εργασιών</label>
+              <textarea class="fta" id="log-text" rows="3" placeholder="π.χ. Εστάλη προσφορά, αναμένουμε απάντηση..."></textarea>
+            </div>
+          </div>
+          <div style="padding-top:18px">
+            <button class="btn btn-acc btn-sm" onclick="saveLog()">+ Προσθήκη</button>
+          </div>
+        </div>
+      </div>
+      <div id="log-list" style="padding:0 20px 16px;max-height:360px;overflow-y:auto">
+        <div style="text-align:center;color:var(--muted);font-size:12px;padding:20px">Φόρτωση...</div>
+      </div>
+    </div>
+
     <div class="modal-footer">
       <button class="btn btn-danger btn-sm" id="del-btn" onclick="deleteOffer()" style="display:none;margin-right:auto">🗑 Διαγραφή</button>
       <button class="btn btn-ghost" onclick="closeModal()">Άκυρο</button>
-      <button class="btn btn-acc" onclick="saveModal()">💾 Αποθήκευση</button>
+      <button class="btn btn-acc" id="save-btn" onclick="saveModal()">💾 Αποθήκευση</button>
     </div>
   </div>
 </div>
@@ -491,6 +521,13 @@ function openModal(id){
   const ec=o.cats||[];
   modalCustomCats=ec.filter(k=>!getCats().find(f=>f.key===k));
   renderModalCats(ec);
+  // reset to details tab
+  switchModalTab('details');
+  // set today in log date
+  document.getElementById('log-date').value=new Date().toISOString().slice(0,10);
+  document.getElementById('log-text').value='';
+  // hide log tab for new offers
+  document.getElementById('mtab-log').style.display=id?'':'none';
   document.getElementById('modal').style.display='flex';
 }
 function closeModal(){document.getElementById('modal').style.display='none';editId=null;modalCustomCats=[];}
@@ -537,6 +574,53 @@ async function deleteOffer(){
   }catch(e){
     alert('Σφάλμα διαγραφής:\n'+e.message);
   }finally{loading(false);}
+}
+
+// ── Modal tabs ─────────────────────────────────────────────────
+function switchModalTab(t){
+  ['details','log'].forEach(tab=>{
+    document.getElementById('mpanel-'+tab).style.display=tab===t?'':'none';
+    const el=document.getElementById('mtab-'+tab);
+    el.style.color=tab===t?'var(--accent)':'var(--muted)';
+    el.style.borderBottomColor=tab===t?'var(--accent)':'transparent';
+  });
+  document.getElementById('save-btn').style.display=t==='details'?'':'none';
+  if(t==='log'&&editId)loadLogs();
+}
+
+// ── Logs ───────────────────────────────────────────────────────
+async function loadLogs(){
+  const box=document.getElementById('log-list');
+  box.innerHTML='<div style="text-align:center;color:var(--muted);font-size:12px;padding:20px">Φόρτωση...</div>';
+  try{
+    const logs=await sbGet('hm_offer_logs',`offer_id=eq.${editId}&order=log_date.desc,created_at.desc`);
+    if(!logs.length){box.innerHTML='<div style="text-align:center;color:var(--muted);font-size:12px;padding:20px">Δεν υπάρχουν εγγραφές ακόμα</div>';return;}
+    box.innerHTML=logs.map(l=>`
+      <div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+        <div style="flex:0 0 90px;font-family:var(--mono);font-size:11px;color:var(--muted);padding-top:2px">${l.log_date.split('-').reverse().join('/')}</div>
+        <div style="flex:1;font-size:12px;line-height:1.6;white-space:pre-wrap">${l.content}</div>
+        <button onclick="deleteLog('${l.id}')" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:14px;padding:0 4px;align-self:flex-start" title="Διαγραφή">×</button>
+      </div>`).join('');
+  }catch(e){box.innerHTML='<div style="color:var(--red);font-size:12px;padding:10px">Σφάλμα: '+e.message+'</div>';}
+}
+
+async function saveLog(){
+  const date=document.getElementById('log-date').value;
+  const text=document.getElementById('log-text').value.trim();
+  if(!date||!text||!editId)return;
+  try{
+    await sbInsert('hm_offer_logs',{offer_id:editId,log_date:date,content:text});
+    document.getElementById('log-text').value='';
+    loadLogs();
+  }catch(e){alert('Σφάλμα: '+e.message);}
+}
+
+async function deleteLog(id){
+  if(!confirm('Διαγραφή εγγραφής;'))return;
+  try{
+    await sbDelete('hm_offer_logs',id);
+    loadLogs();
+  }catch(e){alert('Σφάλμα: '+e.message);}
 }
 
 // ── Init ───────────────────────────────────────────────────────
