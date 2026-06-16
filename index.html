@@ -213,7 +213,7 @@ tbody td{padding:10px 13px;vertical-align:middle}
     <!-- modal tabs -->
     <div style="display:flex;border-bottom:1px solid var(--border);background:var(--surface)">
       <div class="mtab active" id="mtab-details" onclick="switchModalTab('details')" style="padding:9px 18px;font-size:12px;font-weight:500;color:var(--accent);border-bottom:2px solid var(--accent);cursor:pointer">📋 Στοιχεία</div>
-      <div class="mtab" id="mtab-log" onclick="switchModalTab('log')" style="padding:9px 18px;font-size:12px;font-weight:500;color:var(--muted);border-bottom:2px solid transparent;cursor:pointer">📝 Ημερολόγιο</div>
+      <div class="mtab" id="mtab-log" onclick="switchModalTab('log')" style="padding:9px 18px;font-size:12px;font-weight:500;color:var(--muted);border-bottom:2px solid transparent;cursor:pointer">📝 Παρατηρήσεις</div>
     </div>
 
     <!-- TAB: ΣΤΟΙΧΕΙΑ -->
@@ -449,7 +449,10 @@ function renderList(){
       <td>${dlHTML(o.deadline)}</td>
       <td class="td-r">${fmtAmt(o.amount)}</td>
       <td><span class="badge ${sm.cls}">${sm.label}</span></td>
-      <td onclick="event.stopPropagation()"><div class="td-acts"><button class="btn btn-ghost btn-sm" onclick="openModal('${o.id}')">✏️</button></div></td>
+      <td onclick="event.stopPropagation()"><div class="td-acts">
+        <button class="btn btn-ghost btn-sm" onclick="openModal('${o.id}')" title="Επεξεργασία">✏️</button>
+        <button class="btn btn-ghost btn-sm" onclick="openNotes('${o.id}')" title="Παρατηρήσεις" style="color:var(--warn)">📝</button>
+      </div></td>
     </tr>`;
   }).join('');
 }
@@ -594,14 +597,44 @@ async function loadLogs(){
   box.innerHTML='<div style="text-align:center;color:var(--muted);font-size:12px;padding:20px">Φόρτωση...</div>';
   try{
     const logs=await sbGet('hm_offer_logs',`offer_id=eq.${editId}&order=log_date.desc,created_at.desc`);
-    if(!logs.length){box.innerHTML='<div style="text-align:center;color:var(--muted);font-size:12px;padding:20px">Δεν υπάρχουν εγγραφές ακόμα</div>';return;}
+    if(!logs.length){box.innerHTML='<div style="text-align:center;color:var(--muted);font-size:12px;padding:20px">Δεν υπάρχουν παρατηρήσεις ακόμα</div>';return;}
     box.innerHTML=logs.map(l=>`
-      <div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+      <div id="logrow-${l.id}" style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
         <div style="flex:0 0 90px;font-family:var(--mono);font-size:11px;color:var(--muted);padding-top:2px">${l.log_date.split('-').reverse().join('/')}</div>
-        <div style="flex:1;font-size:12px;line-height:1.6;white-space:pre-wrap">${l.content}</div>
-        <button onclick="deleteLog('${l.id}')" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:14px;padding:0 4px;align-self:flex-start" title="Διαγραφή">×</button>
+        <div style="flex:1;font-size:12px;line-height:1.6;white-space:pre-wrap" id="logtext-${l.id}">${l.content}</div>
+        <div style="display:flex;flex-direction:column;gap:4px;align-self:flex-start">
+          <button onclick="editLog('${l.id}','${l.log_date}',this)" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:1px 4px" title="Επεξεργασία">✏️</button>
+          <button onclick="deleteLog('${l.id}')" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:14px;padding:1px 4px" title="Διαγραφή">×</button>
+        </div>
       </div>`).join('');
   }catch(e){box.innerHTML='<div style="color:var(--red);font-size:12px;padding:10px">Σφάλμα: '+e.message+'</div>';}
+}
+
+function editLog(id,date,btn){
+  const textEl=document.getElementById('logtext-'+id);
+  const row=document.getElementById('logrow-'+id);
+  const curText=textEl.textContent;
+  // replace content with inline editor
+  textEl.innerHTML=`<div style="display:flex;flex-direction:column;gap:6px">
+    <input type="date" id="editdate-${id}" value="${date}" style="background:var(--surface);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-family:var(--mono);font-size:11px;padding:4px 6px;outline:none;width:130px">
+    <textarea id="edittext-${id}" rows="3" style="width:100%;background:var(--surface);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-family:var(--sans);font-size:12px;padding:6px 8px;outline:none;resize:vertical">${curText}</textarea>
+    <div style="display:flex;gap:6px">
+      <button onclick="saveLogEdit('${id}')" style="background:var(--accent);color:#fff;border:none;border-radius:4px;padding:4px 12px;font-size:11px;cursor:pointer;font-family:var(--sans)">Αποθήκευση</button>
+      <button onclick="loadLogs()" style="background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:4px;padding:4px 10px;font-size:11px;cursor:pointer;font-family:var(--sans)">Άκυρο</button>
+    </div>
+  </div>`;
+  btn.style.display='none';
+}
+
+async function saveLogEdit(id){
+  const date=document.getElementById('editdate-'+id).value;
+  const text=document.getElementById('edittext-'+id).value.trim();
+  if(!date||!text)return;
+  try{
+    const r=await fetch(`${SB}/rest/v1/hm_offer_logs?id=eq.${id}`,{method:'PATCH',headers:H,body:JSON.stringify({log_date:date,content:text})});
+    if(!r.ok)throw new Error(await r.text());
+    loadLogs();
+  }catch(e){alert('Σφάλμα: '+e.message);}
 }
 
 async function saveLog(){
@@ -616,11 +649,18 @@ async function saveLog(){
 }
 
 async function deleteLog(id){
-  if(!confirm('Διαγραφή εγγραφής;'))return;
+  if(!confirm('Διαγραφή παρατήρησης;'))return;
   try{
     await sbDelete('hm_offer_logs',id);
     loadLogs();
   }catch(e){alert('Σφάλμα: '+e.message);}
+}
+
+// open modal directly on notes tab
+function openNotes(id){
+  openModal(id);
+  // slight delay to let modal render first
+  setTimeout(()=>switchModalTab('log'),50);
 }
 
 // ── Init ───────────────────────────────────────────────────────
