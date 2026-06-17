@@ -260,14 +260,21 @@ tbody td{padding:10px 13px;vertical-align:middle}
       <div class="fg"><label>Σημειώσεις</label><textarea class="fta" id="m-notes" rows="3" placeholder="Ειδικές απαιτήσεις, εξαιρέσεις..."></textarea></div>
     </div>
 
-    <!-- TAB: ΗΜΕΡΟΛΟΓΙΟ -->
+    <!-- TAB: ΠΑΡΑΤΗΡΗΣΕΙΣ -->
     <div id="mpanel-log" style="display:none">
       <div class="modal-body" style="padding-bottom:10px">
-        <div style="display:flex;gap:8px;align-items:flex-start">
+        <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
           <div style="flex:0 0 130px">
             <div class="fg" style="margin-bottom:0"><label>Ημερομηνία</label><input class="fi" id="log-date" type="date"></div>
           </div>
-          <div style="flex:1">
+          <div style="flex:0 0 150px">
+            <div class="fg" style="margin-bottom:0"><label>Κατηγορία</label>
+              <select class="fs" id="log-cat">
+                <option value="">— Κοινή (όλη η προσφορά) —</option>
+              </select>
+            </div>
+          </div>
+          <div style="flex:1;min-width:200px">
             <div class="fg" style="margin-bottom:0"><label>Παρατήρηση / Πορεία εργασιών</label>
               <textarea class="fta" id="log-text" rows="3" placeholder="π.χ. Εστάλη προσφορά, αναμένουμε απάντηση..."></textarea>
             </div>
@@ -605,35 +612,86 @@ function switchModalTab(t){
     el.style.borderBottomColor=tab===t?'var(--accent)':'transparent';
   });
   document.getElementById('save-btn').style.display=t==='details'?'':'none';
-  if(t==='log'&&editId)loadLogs();
+  if(t==='log'&&editId){
+    populateLogCatDropdown();
+    loadLogs();
+  }
+}
+
+// populate the log category dropdown based on this offer's selected categories
+function populateLogCatDropdown(){
+  const sel=document.getElementById('log-cat');
+  const cur=sel.value;
+  const offerCats=getChecked().length?getChecked():(offers.find(o=>o.id===editId)?.cats||[]);
+  sel.innerHTML='<option value="">— Κοινή (όλη η προσφορά) —</option>';
+  offerCats.forEach(k=>{
+    const meta=getCats().find(c=>c.key===k);
+    const label=meta?`${meta.label} (${k})`:k;
+    const o=document.createElement('option');
+    o.value=k;o.textContent=label;
+    if(k===cur)o.selected=true;
+    sel.appendChild(o);
+  });
 }
 
 // ── Logs ───────────────────────────────────────────────────────
+function catLabel(k){
+  if(!k)return null;
+  const meta=getCats().find(c=>c.key===k);
+  return meta?meta.label:k;
+}
+
 async function loadLogs(){
   const box=document.getElementById('log-list');
   box.innerHTML='<div style="text-align:center;color:var(--muted);font-size:12px;padding:20px">Φόρτωση...</div>';
   try{
     const logs=await sbGet('hm_offer_logs',`offer_id=eq.${editId}&order=log_date.desc,created_at.desc`);
     if(!logs.length){box.innerHTML='<div style="text-align:center;color:var(--muted);font-size:12px;padding:20px">Δεν υπάρχουν παρατηρήσεις ακόμα</div>';return;}
-    box.innerHTML=logs.map(l=>`
+    // sort: common (no category) first, then grouped by category in offer's category order
+    const offerCats=offers.find(o=>o.id===editId)?.cats||[];
+    const catOrder=(k)=>{ if(!k) return -1; const idx=offerCats.indexOf(k); return idx===-1?999:idx; };
+    const sorted=[...logs].sort((a,b)=>{
+      const ca=catOrder(a.category), cb=catOrder(b.category);
+      if(ca!==cb) return ca-cb;
+      // within same category, newest first (already ordered by date desc from query, but re-affirm)
+      return (a.log_date<b.log_date)?1:(a.log_date>b.log_date?-1:0);
+    });
+    box.innerHTML=sorted.map(l=>{
+      const lbl=catLabel(l.category);
+      const tag=lbl
+        ? `<span class="cpill" data-k="${l.category}" style="margin-right:6px">${l.category}</span>`
+        : `<span class="cpill" style="margin-right:6px;color:var(--muted)">ΚΟΙΝΗ</span>`;
+      return `
       <div id="logrow-${l.id}" style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
         <div style="flex:0 0 90px;font-family:var(--mono);font-size:11px;color:var(--muted);padding-top:2px">${l.log_date.split('-').reverse().join('/')}</div>
-        <div style="flex:1;font-size:12px;line-height:1.6;white-space:pre-wrap" id="logtext-${l.id}">${l.content}</div>
+        <div style="flex:1;font-size:12px;line-height:1.6" id="logtext-${l.id}">
+          <div style="margin-bottom:3px">${tag}</div>
+          <div style="white-space:pre-wrap">${l.content}</div>
+        </div>
         <div style="display:flex;flex-direction:column;gap:4px;align-self:flex-start">
-          <button onclick="editLog('${l.id}','${l.log_date}',this)" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:1px 4px" title="Επεξεργασία">✏️</button>
+          <button onclick="editLog('${l.id}','${l.log_date}','${l.category||''}',this)" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:1px 4px" title="Επεξεργασία">✏️</button>
           <button onclick="deleteLog('${l.id}')" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:14px;padding:1px 4px" title="Διαγραφή">×</button>
         </div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   }catch(e){box.innerHTML='<div style="color:var(--red);font-size:12px;padding:10px">Σφάλμα: '+e.message+'</div>';}
 }
 
-function editLog(id,date,btn){
+function editLog(id,date,category,btn){
   const textEl=document.getElementById('logtext-'+id);
-  const row=document.getElementById('logrow-'+id);
-  const curText=textEl.textContent;
-  // replace content with inline editor
+  const curText=textEl.querySelector('div:last-child')?.textContent||'';
+  const offerCats=offers.find(o=>o.id===editId)?.cats||[];
+  const catOptions=['<option value="">— Κοινή (όλη η προσφορά) —</option>']
+    .concat(offerCats.map(k=>{
+      const meta=getCats().find(c=>c.key===k);
+      const label=meta?`${meta.label} (${k})`:k;
+      return `<option value="${k}"${k===category?' selected':''}>${label}</option>`;
+    })).join('');
   textEl.innerHTML=`<div style="display:flex;flex-direction:column;gap:6px">
-    <input type="date" id="editdate-${id}" value="${date}" style="background:var(--surface);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-family:var(--mono);font-size:11px;padding:4px 6px;outline:none;width:130px">
+    <div style="display:flex;gap:6px">
+      <input type="date" id="editdate-${id}" value="${date}" style="background:var(--surface);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-family:var(--mono);font-size:11px;padding:4px 6px;outline:none;width:130px">
+      <select id="editcat-${id}" style="background:var(--surface);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-family:var(--sans);font-size:11px;padding:4px 6px;outline:none;flex:1">${catOptions}</select>
+    </div>
     <textarea id="edittext-${id}" rows="3" style="width:100%;background:var(--surface);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-family:var(--sans);font-size:12px;padding:6px 8px;outline:none;resize:vertical">${curText}</textarea>
     <div style="display:flex;gap:6px">
       <button onclick="saveLogEdit('${id}')" style="background:var(--accent);color:#fff;border:none;border-radius:4px;padding:4px 12px;font-size:11px;cursor:pointer;font-family:var(--sans)">Αποθήκευση</button>
@@ -645,10 +703,11 @@ function editLog(id,date,btn){
 
 async function saveLogEdit(id){
   const date=document.getElementById('editdate-'+id).value;
+  const category=document.getElementById('editcat-'+id).value||null;
   const text=document.getElementById('edittext-'+id).value.trim();
   if(!date||!text)return;
   try{
-    const r=await fetch(`${SB}/rest/v1/hm_offer_logs?id=eq.${id}`,{method:'PATCH',headers:H,body:JSON.stringify({log_date:date,content:text})});
+    const r=await fetch(`${SB}/rest/v1/hm_offer_logs?id=eq.${id}`,{method:'PATCH',headers:H,body:JSON.stringify({log_date:date,category,content:text})});
     if(!r.ok)throw new Error(await r.text());
     loadLogs();
   }catch(e){alert('Σφάλμα: '+e.message);}
@@ -656,10 +715,11 @@ async function saveLogEdit(id){
 
 async function saveLog(){
   const date=document.getElementById('log-date').value;
+  const category=document.getElementById('log-cat').value||null;
   const text=document.getElementById('log-text').value.trim();
   if(!date||!text||!editId)return;
   try{
-    await sbInsert('hm_offer_logs',{offer_id:editId,log_date:date,content:text});
+    await sbInsert('hm_offer_logs',{offer_id:editId,log_date:date,category,content:text});
     document.getElementById('log-text').value='';
     loadLogs();
   }catch(e){alert('Σφάλμα: '+e.message);}
