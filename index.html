@@ -863,7 +863,8 @@ async function renderChecklist(method){
   box.innerHTML='<div style="text-align:center;color:var(--muted);font-size:12px;padding:20px">Φόρτωση...</div>';
   let checkedMap={};
   try{
-    const rows=await sbGet('hm_offer_checklist',`offer_id=eq.${editId}`);
+    const rows=await sbGet('hm_offer_checklist',`offer_id=eq.${editId}&order=updated_at.asc`);
+    // iterate in ascending update order so the LAST write for each step_key wins
     rows.forEach(r=>{ if(r.step_key.startsWith(method+':')) checkedMap[r.step_key]=r.checked; });
   }catch(e){console.error('Checklist load error:',e);}
 
@@ -894,12 +895,20 @@ async function renderChecklist(method){
 async function toggleStep(method,stepKey,checked){
   const fullKey=`${method}:${stepKey}`;
   try{
-    await fetch(`${SB}/rest/v1/hm_offer_checklist`,{
-      method:'POST',
-      headers:{...H,'Prefer':'resolution=merge-duplicates,return=representation'},
-      body:JSON.stringify({offer_id:editId,step_key:fullKey,checked,checked_at:checked?new Date().toISOString():null})
-    });
-  }catch(e){console.error(e);}
+    // check if a row already exists for this offer+step
+    const existing=await sbGet('hm_offer_checklist',`offer_id=eq.${editId}&step_key=eq.${encodeURIComponent(fullKey)}`);
+    if(Array.isArray(existing)&&existing.length){
+      // update ALL matching rows (in case of legacy duplicates) to the same state
+      for(const row of existing){
+        await fetch(`${SB}/rest/v1/hm_offer_checklist?id=eq.${row.id}`,{
+          method:'PATCH',headers:H,
+          body:JSON.stringify({checked,checked_at:checked?new Date().toISOString():null})
+        });
+      }
+    }else{
+      await sbInsert('hm_offer_checklist',{offer_id:editId,step_key:fullKey,checked,checked_at:checked?new Date().toISOString():null});
+    }
+  }catch(e){console.error('toggleStep error:',e);alert('Σφάλμα αποθήκευσης: '+e.message);}
   renderChecklist(method);
 }
 
