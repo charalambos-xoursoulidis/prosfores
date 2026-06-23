@@ -225,7 +225,7 @@ tbody td{padding:10px 13px;vertical-align:middle}
 
 <!-- MODAL -->
 <div class="overlay" id="modal" style="display:none" onclick="closeOnBg(event)">
-  <div class="modal" style="max-width:680px">
+  <div class="modal" style="max-width:880px">
     <div class="modal-head">
       <h3 id="modal-title">Νέα Προσφορά</h3>
       <button class="modal-close" onclick="closeModal()">×</button>
@@ -297,7 +297,7 @@ tbody td{padding:10px 13px;vertical-align:middle}
           </div>
         </div>
       </div>
-      <div id="log-list" style="padding:0 20px 16px;max-height:360px;overflow-y:auto">
+      <div id="log-list" style="padding:0 20px 16px;max-height:480px;overflow-y:auto">
         <div style="text-align:center;color:var(--muted);font-size:12px;padding:20px">Φόρτωση...</div>
       </div>
     </div>
@@ -306,8 +306,8 @@ tbody td{padding:10px 13px;vertical-align:middle}
     <div id="mpanel-process" style="display:none">
       <div class="modal-body" style="padding-bottom:10px">
         <div class="fg">
-          <label>Τρόπος Προσφοράς</label>
-          <select class="fs" id="proc-method" onchange="onProcMethodChange()">
+          <label>Τρόπος Προσφοράς (μπορείς να την αλλάξεις οποιαδήποτε στιγμή)</label>
+          <select class="fs" id="proc-method" onchange="onProcMethodChange()" style="cursor:pointer">
             <option value="">— Επιλογή —</option>
             <option value="boq">BOQ</option>
             <option value="lump">Κατ' αποκοπή</option>
@@ -692,18 +692,16 @@ async function loadLogs(){
     box.innerHTML=sorted.map(l=>{
       const lbl=catLabel(l.category);
       const tag=lbl
-        ? `<span class="cpill" data-k="${l.category}" style="margin-right:6px">${l.category}</span>`
-        : `<span class="cpill" style="margin-right:6px;color:var(--muted)">ΚΟΙΝΗ</span>`;
+        ? `<span class="cpill" data-k="${l.category}">${l.category}</span>`
+        : `<span class="cpill" style="color:var(--muted)">ΚΟΙΝΗ</span>`;
       return `
-      <div id="logrow-${l.id}" style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
-        <div style="flex:0 0 90px;font-family:var(--mono);font-size:11px;color:var(--muted);padding-top:2px">${l.log_date.split('-').reverse().join('/')}</div>
-        <div style="flex:1;font-size:12px;line-height:1.6" id="logtext-${l.id}">
-          <div style="margin-bottom:3px">${tag}</div>
-          <div style="white-space:pre-wrap">${l.content}</div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:4px;align-self:flex-start">
-          <button onclick="editLog('${l.id}','${l.log_date}','${l.category||''}',this)" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:1px 4px" title="Επεξεργασία">✏️</button>
-          <button onclick="deleteLog('${l.id}')" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:14px;padding:1px 4px" title="Διαγραφή">×</button>
+      <div id="logrow-${l.id}" style="display:flex;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);align-items:flex-start">
+        <div style="flex:0 0 72px;font-family:var(--mono);font-size:10.5px;color:var(--muted);padding-top:1px">${l.log_date.split('-').reverse().join('/')}</div>
+        <div style="flex:0 0 50px;padding-top:1px">${tag}</div>
+        <div style="flex:1;font-size:12px;line-height:1.4;white-space:pre-wrap" id="logtext-${l.id}">${l.content}</div>
+        <div style="display:flex;gap:2px;align-self:flex-start;flex-shrink:0">
+          <button onclick="editLog('${l.id}','${l.log_date}','${l.category||''}',this)" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:11px;padding:1px 3px" title="Επεξεργασία">✏️</button>
+          <button onclick="deleteLog('${l.id}')" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:13px;padding:1px 3px" title="Διαγραφή">×</button>
         </div>
       </div>`;
     }).join('');
@@ -712,7 +710,7 @@ async function loadLogs(){
 
 function editLog(id,date,category,btn){
   const textEl=document.getElementById('logtext-'+id);
-  const curText=textEl.querySelector('div:last-child')?.textContent||'';
+  const curText=textEl.textContent||'';
   const offerCats=offers.find(o=>o.id===editId)?.cats||[];
   const catOptions=['<option value="">— Κοινή (όλη η προσφορά) —</option>']
     .concat(offerCats.map(k=>{
@@ -840,8 +838,11 @@ async function onProcMethodChange(){
     await sbUpdate('hm_offers',editId,{offer_method:method||null});
     const i=offers.findIndex(o=>o.id===editId);
     if(i!==-1)offers[i].offer_method=method||null;
-  }catch(e){alert('Σφάλμα: '+e.message);}
-  renderChecklist(method);
+    renderChecklist(method);
+  }catch(e){
+    alert('Σφάλμα αποθήκευσης τρόπου προσφοράς:\n'+e.message);
+    console.error(e);
+  }
 }
 
 async function loadProcess(){
@@ -862,9 +863,9 @@ async function renderChecklist(method){
   box.innerHTML='<div style="text-align:center;color:var(--muted);font-size:12px;padding:20px">Φόρτωση...</div>';
   let checkedMap={};
   try{
-    const rows=await sbGet('hm_offer_checklist',`offer_id=eq.${editId}&step_key=like.${method}:*`);
-    rows.forEach(r=>{checkedMap[r.step_key]=r.checked;});
-  }catch(e){console.error(e);}
+    const rows=await sbGet('hm_offer_checklist',`offer_id=eq.${editId}`);
+    rows.forEach(r=>{ if(r.step_key.startsWith(method+':')) checkedMap[r.step_key]=r.checked; });
+  }catch(e){console.error('Checklist load error:',e);}
 
   const total=steps.length;
   const doneCount=steps.filter(s=>checkedMap[`${method}:${s.key}`]).length;
