@@ -123,6 +123,18 @@ tbody td{padding:10px 13px;vertical-align:middle}
 .setting-item .si-key{font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:4px}
 .setting-item .si-del{background:none;border:none;color:var(--dim);cursor:pointer;font-size:14px;padding:1px 5px;border-radius:3px}
 .setting-item .si-del:hover{color:var(--red);background:var(--red-bg)}
+/* checklist */
+.chk-step{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)}
+.chk-step:last-child{border-bottom:none}
+.chk-step.sub{padding-left:26px}
+.chk-step input[type="checkbox"]{margin-top:2px;width:15px;height:15px;accent-color:var(--ok);cursor:pointer;flex-shrink:0}
+.chk-step .chk-label{font-size:12px;line-height:1.5;cursor:pointer}
+.chk-step.main .chk-label{font-weight:600}
+.chk-step.done .chk-label{color:var(--muted);text-decoration:line-through}
+.chk-progress{display:flex;align-items:center;gap:8px;padding:8px 20px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0}
+.chk-progress-bar{flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+.chk-progress-fill{height:100%;background:var(--ok);transition:width .3s}
+.chk-progress-pct{font-family:var(--mono);font-size:11px;color:var(--muted);width:36px;text-align:right}
 </style>
 </head>
 <body>
@@ -222,6 +234,7 @@ tbody td{padding:10px 13px;vertical-align:middle}
     <div style="display:flex;border-bottom:1px solid var(--border);background:var(--surface)">
       <div class="mtab active" id="mtab-details" onclick="switchModalTab('details')" style="padding:9px 18px;font-size:12px;font-weight:500;color:var(--accent);border-bottom:2px solid var(--accent);cursor:pointer">📋 Στοιχεία</div>
       <div class="mtab" id="mtab-log" onclick="switchModalTab('log')" style="padding:9px 18px;font-size:12px;font-weight:500;color:var(--muted);border-bottom:2px solid transparent;cursor:pointer">📝 Παρατηρήσεις</div>
+      <div class="mtab" id="mtab-process" onclick="switchModalTab('process')" style="padding:9px 18px;font-size:12px;font-weight:500;color:var(--muted);border-bottom:2px solid transparent;cursor:pointer">⚙️ Διαδικασία</div>
     </div>
 
     <!-- TAB: ΣΤΟΙΧΕΙΑ -->
@@ -287,6 +300,22 @@ tbody td{padding:10px 13px;vertical-align:middle}
       <div id="log-list" style="padding:0 20px 16px;max-height:360px;overflow-y:auto">
         <div style="text-align:center;color:var(--muted);font-size:12px;padding:20px">Φόρτωση...</div>
       </div>
+    </div>
+
+    <!-- TAB: ΔΙΑΔΙΚΑΣΙΑ -->
+    <div id="mpanel-process" style="display:none">
+      <div class="modal-body" style="padding-bottom:10px">
+        <div class="fg">
+          <label>Τρόπος Προσφοράς</label>
+          <select class="fs" id="proc-method" onchange="onProcMethodChange()">
+            <option value="">— Επιλογή —</option>
+            <option value="boq">BOQ</option>
+            <option value="lump">Κατ' αποκοπή</option>
+            <option value="other">Άλλο</option>
+          </select>
+        </div>
+      </div>
+      <div id="proc-checklist" style="padding:0 20px 16px;max-height:380px;overflow-y:auto"></div>
     </div>
 
     <div class="modal-footer">
@@ -555,6 +584,7 @@ function openModal(id){
   document.getElementById('log-text').value='';
   // hide log tab for new offers
   document.getElementById('mtab-log').style.display=id?'':'none';
+  document.getElementById('mtab-process').style.display=id?'':'none';
   document.getElementById('modal').style.display='flex';
 }
 function closeModal(){document.getElementById('modal').style.display='none';editId=null;modalCustomCats=[];}
@@ -605,7 +635,7 @@ async function deleteOffer(){
 
 // ── Modal tabs ─────────────────────────────────────────────────
 function switchModalTab(t){
-  ['details','log'].forEach(tab=>{
+  ['details','log','process'].forEach(tab=>{
     document.getElementById('mpanel-'+tab).style.display=tab===t?'':'none';
     const el=document.getElementById('mtab-'+tab);
     el.style.color=tab===t?'var(--accent)':'var(--muted)';
@@ -615,6 +645,9 @@ function switchModalTab(t){
   if(t==='log'&&editId){
     populateLogCatDropdown();
     loadLogs();
+  }
+  if(t==='process'&&editId){
+    loadProcess();
   }
 }
 
@@ -738,6 +771,135 @@ function openNotes(id){
   openModal(id);
   // slight delay to let modal render first
   setTimeout(()=>switchModalTab('log'),50);
+}
+
+// ── Process / Checklist ──────────────────────────────────────────
+// Each step: {key, label, sub:bool, main:bool}
+const PROCESS_STEPS={
+  boq:[
+    {key:'1',label:'1ο Δημιουργία φακέλου έργου με 2 υποφάκελους: Οικονομικά, Τεχνικά',main:true},
+    {key:'2',label:'2ο Αποθήκευση μελέτης με τα σχέδια, τις προδιαγραφές και το BOQ',main:true},
+    {key:'3',label:'3ο Επιβεβαίωση των αντικειμένων που θα δώσουμε προσφορά',main:true},
+    {key:'4',label:'4ο Δημιουργία των ρουτίνων του αρχείου BOQ στο Claude',main:true},
+    {key:'5',label:'5ο Μελέτη του BOQ για να καταλάβουμε τη δομή του',main:true},
+    {key:'5.1',label:'Τι περιλαμβάνει στο τρέχον μέτρο (π.χ. υλικό, βάνες, στήριξη, μόνωση κλπ)',sub:true},
+    {key:'5.2',label:"Έχει κομμάτια κατ' αποκοπή (π.χ. υδραυλικά μπάνιου ή ολοκληρωμένο μπάνιο)",sub:true},
+    {key:'5.3',label:'Συμφωνεί η τεχνική περιγραφή με το σχέδιο και το BOQ',sub:true},
+    {key:'5.4',label:'Αλλαγή χρώματος ή απόκρυψη πεδίων που δεν μας αφορούν ή δεν θα δώσουμε τιμή',sub:true},
+    {key:'5.5',label:'Δυσκολία - Επικινδυνότητα έργου',sub:true},
+    {key:'5.6',label:'Ύψος - αν χρειάζεται Mateco',sub:true},
+    {key:'5.7',label:'Καταγραφή παρατηρήσεων',sub:true},
+    {key:'5.8',label:'Συμπλήρωση των πεδίων αρχικά με τα προφανή',sub:true},
+    {key:'5.9',label:'Αν έχει προμέτρηση και επιβεβαίωση μερικών ενδεικτικών ποσοτήτων για την ακρίβειά τους',sub:true},
+    {key:'6',label:'6ο Μελέτη προδιαγραφών',main:true},
+    {key:'6.1',label:'Ανέβασμα στο Claude για την αρχική αξιολόγηση',sub:true},
+    {key:'6.2',label:'Επιβεβαίωση των δεδομένων, ειδικά των ιδιαίτερων',sub:true},
+    {key:'7',label:'7ο Υπολογισμός κόστους τρέχοντος μέτρου για τα υλικά και την εργασία',main:true},
+    {key:'7.1',label:'Πρώτος υπολογισμός τους από το AI',sub:true},
+    {key:'7.2',label:'Σύγκριση με παρόμοια έργα',sub:true},
+    {key:'7.3',label:'Συμβουλή των τεχνικών και του Αχιλλέα',sub:true},
+    {key:'8',label:'8ο Αξιολόγηση πρόσβασης',main:true},
+    {key:'8.1',label:'Δρομολόγια - βενζίνες με τα αυτοκίνητα',sub:true},
+    {key:'8.2',label:'Διαμονή και διατροφή',sub:true},
+    {key:'9',label:'9ο Παρατηρήσεις',main:true},
+    {key:'9.1',label:'Δεν περιλαμβάνει οικοδομικές - χωματουργικές εργασίες',sub:true},
+    {key:'9.2',label:'Τιμή Mateco χωριστά',sub:true},
+    {key:'9.3',label:'Δεν περιλαμβάνει εξοπλισμό',sub:true},
+    {key:'10',label:'10ο Προσφορές από προμηθευτές',main:true},
+  ],
+  // ΠΡΟΣΩΡΙΝΗ ΠΡΟΤΑΣΗ — προς αναθεώρηση μαζί
+  lump:[
+    {key:'1',label:'1ο Δημιουργία φακέλου έργου με 2 υποφάκελους: Οικονομικά, Τεχνικά',main:true},
+    {key:'2',label:'2ο Αποθήκευση μελέτης / σχεδίων / περιγραφής αντικειμένου',main:true},
+    {key:'3',label:'3ο Επιβεβαίωση ακριβούς αντικειμένου εργασιών (τι περιλαμβάνει το πακέτο)',main:true},
+    {key:'4',label:'4ο Καθορισμός ορίων εργασιών - τι ΔΕΝ περιλαμβάνεται',main:true},
+    {key:'5',label:'5ο Αξιολόγηση δυσκολίας / επικινδυνότητας / ύψους (Mateco)',main:true},
+    {key:'6',label:'6ο Υπολογισμός κόστους υλικών & εργασίας για το σύνολο του πακέτου',main:true},
+    {key:'6.1',label:'Σύγκριση με παρόμοια ολοκληρωμένα έργα',sub:true},
+    {key:'6.2',label:'Συμβουλή τεχνικών και Αχιλλέα',sub:true},
+    {key:'7',label:'7ο Αξιολόγηση πρόσβασης (δρομολόγια, διαμονή, διατροφή)',main:true},
+    {key:'8',label:'8ο Καταγραφή παρατηρήσεων / εξαιρέσεων',main:true},
+    {key:'9',label:'9ο Προσφορές από προμηθευτές (όπου απαιτείται)',main:true},
+  ],
+  other:[
+    {key:'1',label:'1ο Δημιουργία φακέλου έργου με 2 υποφάκελους: Οικονομικά, Τεχνικά',main:true},
+    {key:'2',label:'2ο Αποθήκευση διαθέσιμης μελέτης / στοιχείων έργου',main:true},
+    {key:'3',label:'3ο Καθορισμός μεθόδου τιμολόγησης για το συγκεκριμένο έργο',main:true},
+    {key:'4',label:'4ο Επιβεβαίωση αντικειμένου και ορίων εργασιών',main:true},
+    {key:'5',label:'5ο Υπολογισμός κόστους',main:true},
+    {key:'6',label:'6ο Αξιολόγηση πρόσβασης',main:true},
+    {key:'7',label:'7ο Καταγραφή παρατηρήσεων / εξαιρέσεων',main:true},
+    {key:'8',label:'8ο Προσφορές από προμηθευτές (όπου απαιτείται)',main:true},
+  ]
+};
+
+async function onProcMethodChange(){
+  const method=document.getElementById('proc-method').value;
+  if(!editId)return;
+  try{
+    await sbUpdate('hm_offers',editId,{offer_method:method||null});
+    const i=offers.findIndex(o=>o.id===editId);
+    if(i!==-1)offers[i].offer_method=method||null;
+  }catch(e){alert('Σφάλμα: '+e.message);}
+  renderChecklist(method);
+}
+
+async function loadProcess(){
+  const o=offers.find(x=>x.id===editId);
+  const method=o?.offer_method||'';
+  document.getElementById('proc-method').value=method;
+  if(!method){
+    document.getElementById('proc-checklist').innerHTML='<div style="text-align:center;color:var(--muted);font-size:12px;padding:30px">Επίλεξε τρόπο προσφοράς για να εμφανιστεί το checklist</div>';
+    return;
+  }
+  renderChecklist(method);
+}
+
+async function renderChecklist(method){
+  const box=document.getElementById('proc-checklist');
+  if(!method){box.innerHTML='<div style="text-align:center;color:var(--muted);font-size:12px;padding:30px">Επίλεξε τρόπο προσφοράς για να εμφανιστεί το checklist</div>';return;}
+  const steps=PROCESS_STEPS[method]||[];
+  box.innerHTML='<div style="text-align:center;color:var(--muted);font-size:12px;padding:20px">Φόρτωση...</div>';
+  let checkedMap={};
+  try{
+    const rows=await sbGet('hm_offer_checklist',`offer_id=eq.${editId}&step_key=like.${method}:*`);
+    rows.forEach(r=>{checkedMap[r.step_key]=r.checked;});
+  }catch(e){console.error(e);}
+
+  const total=steps.length;
+  const doneCount=steps.filter(s=>checkedMap[`${method}:${s.key}`]).length;
+  const pct=total?Math.round(doneCount/total*100):0;
+
+  const stepsHtml=steps.map(s=>{
+    const fullKey=`${method}:${s.key}`;
+    const isChecked=!!checkedMap[fullKey];
+    const cls=['chk-step', s.main?'main':'', s.sub?'sub':'', isChecked?'done':''].filter(Boolean).join(' ');
+    return `<label class="${cls}">
+      <input type="checkbox" ${isChecked?'checked':''} onchange="toggleStep('${method}','${s.key}',this.checked)">
+      <span class="chk-label">${s.label}</span>
+    </label>`;
+  }).join('');
+
+  box.innerHTML=`
+    <div class="chk-progress" style="margin:-1px -20px 0">
+      <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">${doneCount}/${total}</span>
+      <div class="chk-progress-bar"><div class="chk-progress-fill" style="width:${pct}%"></div></div>
+      <span class="chk-progress-pct">${pct}%</span>
+    </div>
+    <div style="padding-top:8px">${stepsHtml}</div>
+  `;
+}
+
+async function toggleStep(method,stepKey,checked){
+  const fullKey=`${method}:${stepKey}`;
+  try{
+    await fetch(`${SB}/rest/v1/hm_offer_checklist`,{
+      method:'POST',
+      headers:{...H,'Prefer':'resolution=merge-duplicates,return=representation'},
+      body:JSON.stringify({offer_id:editId,step_key:fullKey,checked,checked_at:checked?new Date().toISOString():null})
+    });
+  }catch(e){console.error(e);}
+  renderChecklist(method);
 }
 
 // ── Init ───────────────────────────────────────────────────────
