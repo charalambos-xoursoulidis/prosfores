@@ -186,6 +186,7 @@ tbody td{padding:10px 13px;vertical-align:middle}
           <th onclick="sortBy('engineer')">Μηχανικός <span id="srt-engineer"></span></th>
           <th onclick="sortBy('deadline')">Παράδοση <span id="srt-deadline"></span></th>
           <th style="text-align:right" onclick="sortBy('amount')">Ποσό € <span id="srt-amount"></span></th>
+          <th>Διαδικασία</th>
           <th>Κατάσταση</th>
           <th></th>
         </tr></thead>
@@ -489,7 +490,7 @@ function renderList(){
   const active=offers.filter(o=>!['ok','lost'].includes(o.status));
   document.getElementById('tb-info').textContent=offers.length+' προσφορές · '+active.length+' ενεργές';
   const tbody=document.getElementById('list-tbody');
-  if(!rows.length){tbody.innerHTML='<tr><td colspan="9" class="empty-row">Δεν βρέθηκαν προσφορές</td></tr>';return;}
+  if(!rows.length){tbody.innerHTML='<tr><td colspan="10" class="empty-row">Δεν βρέθηκαν προσφορές</td></tr>';return;}
   tbody.innerHTML=rows.map(o=>{
     const sm=STATUS_META[o.status]||STATUS_META.new;
     const cats=(o.cats||[]).map(c=>catPill(c)).join('');
@@ -501,6 +502,7 @@ function renderList(){
       <td>${o.engineer||'<span style="color:var(--dim)">—</span>'}</td>
       <td>${dlHTML(o.deadline)}</td>
       <td class="td-r">${fmtAmt(o.amount)}</td>
+      <td>${procBadgeHTML(o)}</td>
       <td><span class="badge ${sm.cls}">${sm.label}</span></td>
       <td onclick="event.stopPropagation()"><div class="td-acts">
         <button class="btn btn-ghost btn-sm" onclick="openModal('${o.id}')" title="Επεξεργασία">✏️</button>
@@ -839,6 +841,7 @@ async function onProcMethodChange(){
     const i=offers.findIndex(o=>o.id===editId);
     if(i!==-1)offers[i].offer_method=method||null;
     renderChecklist(method);
+    renderList();
   }catch(e){
     alert('Σφάλμα αποθήκευσης τρόπου προσφοράς:\n'+e.message);
     console.error(e);
@@ -908,11 +911,18 @@ async function toggleStep(method,stepKey,checked){
     }else{
       await sbInsert('hm_offer_checklist',{offer_id:editId,step_key:fullKey,checked,checked_at:checked?new Date().toISOString():null});
     }
+    // update local cache used by the list view's progress bar
+    const idx=allChecklistRows.findIndex(r=>r.offer_id===editId&&r.step_key===fullKey);
+    if(idx!==-1)allChecklistRows[idx].checked=checked;
+    else allChecklistRows.push({offer_id:editId,step_key:fullKey,checked});
   }catch(e){console.error('toggleStep error:',e);alert('Σφάλμα αποθήκευσης: '+e.message);}
   renderChecklist(method);
+  renderList();
 }
 
 // ── Init ───────────────────────────────────────────────────────
+let allChecklistRows=[]; // global cache, refreshed on init and after toggles
+
 async function init(){
   loading(true);
   try{
@@ -923,6 +933,8 @@ async function init(){
     }
     const data=await sbGet('hm_offers','order=created_at.desc');
     if(Array.isArray(data))offers=data;
+    const ck=await sbGet('hm_offer_checklist','order=updated_at.asc');
+    if(Array.isArray(ck))allChecklistRows=ck;
   }catch(e){
     console.error('Init error:',e);
     document.getElementById('tb-info').textContent='⚠ Σφάλμα σύνδεσης Supabase';
@@ -930,6 +942,35 @@ async function init(){
   }finally{loading(false);}
   syncEng();syncCatFilter();renderList();
   const el=document.getElementById('srt-deadline');if(el)el.textContent='↑';
+}
+
+// Calculate process completion % for an offer based on its offer_method
+function processProgress(offer){
+  const method=offer.offer_method;
+  if(!method)return null;
+  const steps=PROCESS_STEPS[method]||[];
+  if(!steps.length)return null;
+  // build checked map from cached rows for this offer (last write wins, since ordered asc)
+  const checkedMap={};
+  allChecklistRows.forEach(r=>{
+    if(r.offer_id===offer.id && r.step_key.startsWith(method+':')) checkedMap[r.step_key]=r.checked;
+  });
+  const done=steps.filter(s=>checkedMap[`${method}:${s.key}`]).length;
+  const pct=Math.round(done/steps.length*100);
+  return {done,total:steps.length,pct,method};
+}
+
+function procBadgeHTML(offer){
+  const p=processProgress(offer);
+  if(!p)return'<span class="dl-none">—</span>';
+  const barCls=p.pct===100?'full':(p.pct>0?'partial':'zero');
+  const fillColor=p.pct===100?'var(--ok)':(p.pct>=50?'var(--warn)':'var(--red)');
+  return`<div style="display:flex;align-items:center;gap:6px;min-width:90px">
+    <div style="flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden;min-width:50px">
+      <div style="height:100%;width:${p.pct}%;background:${fillColor};border-radius:3px"></div>
+    </div>
+    <span style="font-family:var(--mono);font-size:10px;color:var(--muted);white-space:nowrap">${p.pct}%</span>
+  </div>`;
 }
 
 init();
