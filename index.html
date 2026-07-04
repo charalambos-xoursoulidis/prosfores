@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ΗΜ Προσφορές – Διαχείριση</title>
 <link rel="icon" type="image/png" id="favicon-link" href="">
+<script src="https://unpkg.com/docx@8.5.0/build/index.umd.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -298,7 +299,11 @@ tbody td{padding:10px 13px;vertical-align:middle}
           </div>
         </div>
       </div>
-      <div id="log-list" style="padding:0 20px 16px;max-height:480px;overflow-y:auto">
+      <div style="padding:0 20px 8px;display:flex;justify-content:flex-end;gap:6px">
+        <button class="btn btn-ghost btn-sm" onclick="exportLogsToPDF()" id="export-pdf-btn">🖨 Εξαγωγή σε PDF</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportLogsToWord()" id="export-log-btn">📄 Εξαγωγή σε Word</button>
+      </div>
+      <div id="log-list" style="padding:0 20px 16px;max-height:440px;overflow-y:auto">
         <div style="text-align:center;color:var(--muted);font-size:12px;padding:20px">Φόρτωση...</div>
       </div>
     </div>
@@ -315,6 +320,9 @@ tbody td{padding:10px 13px;vertical-align:middle}
             <option value="other">Άλλο</option>
           </select>
         </div>
+      </div>
+      <div style="padding:0 20px 8px;display:flex;justify-content:flex-end">
+        <button class="btn btn-ghost btn-sm" onclick="printProcess()">🖨 Εκτύπωση Διαδικασίας</button>
       </div>
       <div id="proc-checklist" style="padding:0 20px 16px;max-height:380px;overflow-y:auto"></div>
     </div>
@@ -771,6 +779,315 @@ function openNotes(id){
   openModal(id);
   // slight delay to let modal render first
   setTimeout(()=>switchModalTab('log'),50);
+}
+
+// ── Export observations to Word ──────────────────────────────────
+function base64ToUint8(b64){
+  const bin=atob(b64);
+  const bytes=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+  return bytes;
+}
+
+async function exportLogsToWord(){
+  if(!editId)return;
+  if(!window.docx){
+    alert('Η βιβλιοθήκη δημιουργίας Word δεν φορτώθηκε. Ελέγξτε τη σύνδεση στο internet και δοκιμάστε ξανά.');
+    return;
+  }
+  const btn=document.getElementById('export-log-btn');
+  const origText=btn.textContent;
+  btn.textContent='⏳ Δημιουργία...';
+  btn.disabled=true;
+  try{
+    const offer=offers.find(o=>o.id===editId);
+    if(!offer){alert('Δεν βρέθηκε η προσφορά');return;}
+    const logs=await sbGet('hm_offer_logs',`offer_id=eq.${editId}`);
+    if(!logs.length){alert('Δεν υπάρχουν παρατηρήσεις για εξαγωγή.');return;}
+
+    // sort: common first, then by offer's category order
+    const offerCats=offer.cats||[];
+    const catOrder=(k)=>{ if(!k) return -1; const idx=offerCats.indexOf(k); return idx===-1?999:idx; };
+    const sorted=[...logs].sort((a,b)=>{
+      const ca=catOrder(a.category), cb=catOrder(b.category);
+      if(ca!==cb) return ca-cb;
+      return (a.log_date<b.log_date)?-1:(a.log_date>b.log_date?1:0);
+    });
+
+    const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+            ImageRun, AlignmentType, HeadingLevel, BorderStyle, WidthType,
+            ShadingType, VerticalAlign } = window.docx;
+
+    const border={style:BorderStyle.SINGLE,size:1,color:"CCCCCC"};
+    const borders={top:border,bottom:border,left:border,right:border};
+    const TABLE_W=9360; // content width at 1" margins, US Letter
+
+    // Column widths: Κατηγορία | Παρατήρηση
+    const colWidths=[1800,7560];
+
+    function headerCell(text,width){
+      return new TableCell({
+        borders,width:{size:width,type:WidthType.DXA},
+        shading:{fill:"1c1a17",type:ShadingType.CLEAR},
+        margins:{top:80,bottom:80,left:120,right:120},
+        verticalAlign:VerticalAlign.CENTER,
+        children:[new Paragraph({children:[new TextRun({text,bold:true,color:"FFFFFF",size:20})]})]
+      });
+    }
+    function bodyCell(text,width,opts={}){
+      return new TableCell({
+        borders,width:{size:width,type:WidthType.DXA},
+        margins:{top:100,bottom:100,left:120,right:120},
+        verticalAlign:VerticalAlign.CENTER,
+        children:[new Paragraph({children:[new TextRun({text:text||'',size:22,bold:!!opts.bold})]})]
+      });
+    }
+    function answerCell(width){
+      return new TableCell({
+        borders,width:{size:width,type:WidthType.DXA},
+        margins:{top:160,bottom:160,left:120,right:120},
+        children:[new Paragraph({
+          border:{bottom:{style:BorderStyle.SINGLE,size:4,color:"999999",space:1}},
+          children:[new TextRun({text:" ",size:22})]
+        })]
+      });
+    }
+
+    const rows=[
+      new TableRow({tableHeader:true,children:[
+        headerCell('Κατηγορία',colWidths[0]),
+        headerCell('Παρατήρηση',colWidths[1]),
+      ]})
+    ];
+
+    sorted.forEach(l=>{
+      const catTxt=l.category ? (catLabel(l.category)||l.category) : 'Κοινή (όλη η προσφορά)';
+      rows.push(new TableRow({children:[
+        bodyCell(catTxt,colWidths[0],{bold:true}),
+        bodyCell(l.content,colWidths[1]),
+      ]}));
+      rows.push(new TableRow({children:[
+        bodyCell('Απάντηση:',colWidths[0]),
+        answerCell(colWidths[1]),
+      ]}));
+    });
+
+    const table=new Table({width:{size:TABLE_W,type:WidthType.DXA},columnWidths:colWidths,rows});
+
+    // Header: logo + company name, then Προς / Έργο
+    const logoB64=LOGO_ICON.split(',')[1];
+    const logoBytes=base64ToUint8(logoB64);
+
+    const headerParas=[
+      new Paragraph({
+        children:[
+          new ImageRun({data:logoBytes,transformation:{width:50,height:50},type:"png"}),
+          new TextRun({text:"   ΧΟΥΡΣΟΥΛΙΔΗΣ",bold:true,size:36,font:"Arial"}),
+        ],
+        spacing:{after:200}
+      }),
+      new Paragraph({
+        children:[new TextRun({text:`Προς: ${offer.client||'—'}`,bold:true,size:24,font:"Arial"})],
+        spacing:{after:80}
+      }),
+      new Paragraph({
+        children:[new TextRun({text:`Έργο: ${offer.project||'—'}`,bold:true,size:24,font:"Arial"})],
+        border:{bottom:{style:BorderStyle.SINGLE,size:6,color:"2E2A24",space:4}},
+        spacing:{after:280}
+      }),
+    ];
+
+    const doc=new Document({
+      styles:{default:{document:{run:{font:"Arial",size:22}}}},
+      sections:[{
+        properties:{page:{size:{width:12240,height:15840},margin:{top:1080,right:1440,bottom:1080,left:1440}}},
+        children:[...headerParas, table]
+      }]
+    });
+
+    const blob=await Packer.toBlob(doc);
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    const safeClient=(offer.client||'pelatis').replace(/[^a-zA-Z0-9Α-Ωα-ωΆ-Ώά-ώ]+/g,'_');
+    a.href=url;
+    a.download=`Παρατηρήσεις_${offer.no||'προσφορά'}_${safeClient}.docx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url),2000);
+
+  }catch(e){
+    console.error('Export error:',e);
+    alert('Σφάλμα κατά την εξαγωγή:\n'+e.message);
+  }finally{
+    btn.textContent=origText;
+    btn.disabled=false;
+  }
+}
+
+// ── Κοινή βοηθητική για εκτύπωση ────────────────────────────────
+function printWindow(html){
+  const w=window.open('','_blank');
+  if(!w){
+    alert('Ο browser μπλόκαρε το παράθυρο εκτύπωσης.\nΕπιτρέψτε pop-ups για αυτή τη σελίδα και ξαναδοκιμάστε.');
+    return;
+  }
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+}
+
+function commonHead(title, extraCss=''){
+  return `<!DOCTYPE html>
+<html lang="el"><head><meta charset="UTF-8">
+<title>${title}</title>
+<style>
+  @page{size:A4;margin:16mm}
+  *{box-sizing:border-box}
+  body{font-family:Arial,Helvetica,sans-serif;color:#1c1a17;margin:0;padding:0;font-size:12px}
+  .hdr{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .hdr img{height:38px;width:38px}
+  .hdr h1{font-size:20px;margin:0;font-weight:700}
+  .meta{margin-bottom:14px;padding-bottom:8px;border-bottom:2px solid #2E2A24}
+  .meta div{font-size:12px;font-weight:700;margin-bottom:3px}
+  ${extraCss}
+</style></head><body>`;
+}
+
+function commonFooter(){
+  return `<scr`+`ipt>window.onload=function(){setTimeout(function(){window.print();},300);}<\/scr`+`ipt></body></html>`;
+}
+
+function commonHeader(offer, subtitle){
+  return `
+  <div class="hdr">
+    <img src="${LOGO_ICON}" alt="logo">
+    <h1>ΧΟΥΡΣΟΥΛΙΔΗΣ</h1>
+  </div>
+  <div class="meta">
+    <div>Προς: ${(offer.client||'—').replace(/</g,'&lt;')}</div>
+    <div>Έργο: ${(offer.project||'—').replace(/</g,'&lt;')}</div>
+    ${subtitle?`<div style="font-weight:400;font-size:11px;color:#555;margin-top:2px">${subtitle}</div>`:''}
+  </div>`;
+}
+
+// ── Εκτύπωση Διαδικασίας ─────────────────────────────────────────
+async function printProcess(){
+  if(!editId) return;
+  const offer=offers.find(o=>o.id===editId);
+  if(!offer){alert('Δεν βρέθηκε η προσφορά');return;}
+  const method=offer.offer_method;
+  if(!method){alert('Δεν έχει επιλεγεί τρόπος προσφοράς.');return;}
+
+  const steps=PROCESS_STEPS[method]||[];
+  const methodLabels={boq:'BOQ',lump:"Κατ' αποκοπή",other:'Άλλο'};
+
+  // Φέρνουμε τα checked από τη βάση
+  let checkedMap={};
+  try{
+    const rows=await sbGet('hm_offer_checklist',`offer_id=eq.${editId}&order=updated_at.asc`);
+    rows.forEach(r=>{ if(r.step_key.startsWith(method+':')) checkedMap[r.step_key]=r.checked; });
+  }catch(e){ console.error(e); }
+
+  const done=steps.filter(s=>checkedMap[`${method}:${s.key}`]).length;
+  const pct=steps.length?Math.round(done/steps.length*100):0;
+
+  const stepsHtml=steps.map(s=>{
+    const checked=!!checkedMap[`${method}:${s.key}`];
+    const indentStyle=s.sub?'padding-left:28px':'';
+    const fontWeight=s.main?'font-weight:700':'';
+    const check=checked
+      ? '<span style="display:inline-block;width:16px;height:16px;border:1px solid #0f7a5a;background:#0f7a5a;border-radius:3px;margin-right:6px;vertical-align:middle;position:relative"><span style="position:absolute;top:-1px;left:2px;color:#fff;font-size:12px">✓</span></span>'
+      : '<span style="display:inline-block;width:16px;height:16px;border:1px solid #999;border-radius:3px;margin-right:6px;vertical-align:middle"></span>';
+    const textStyle=checked?'color:#888;text-decoration:line-through':'';
+    return `<div style="padding:4px 0;border-bottom:1px solid #eee;${indentStyle}${fontWeight}">
+      ${check}<span style="${textStyle}">${s.label.replace(/</g,'&lt;')}</span>
+    </div>`;
+  }).join('');
+
+  const css=`
+    .progress-bar-wrap{background:#e5e5e5;border-radius:4px;height:8px;margin-bottom:14px}
+    .progress-bar-fill{height:8px;border-radius:4px;background:${pct===100?'#0f7a5a':pct>=50?'#b45309':'#b91c1c'}}
+    .progress-label{font-size:11px;color:#555;margin-bottom:4px}
+  `;
+
+  const html=commonHead(`Διαδικασία_${offer.no||''}`, css)
+    + commonHeader(offer, `Τρόπος προσφοράς: ${methodLabels[method]||method}`)
+    + `<div class="progress-label">${done}/${steps.length} βήματα ολοκληρωμένα — ${pct}%</div>
+       <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
+       ${stepsHtml}`
+    + commonFooter();
+
+  printWindow(html);
+}
+
+// ── Export observations to PDF (via browser print) ────────────────
+async function exportLogsToPDF(){
+  if(!editId)return;
+  const btn=document.getElementById('export-pdf-btn');
+  const origText=btn.textContent;
+  btn.textContent='⏳ Δημιουργία...';
+  btn.disabled=true;
+  try{
+    const offer=offers.find(o=>o.id===editId);
+    if(!offer){alert('Δεν βρέθηκε η προσφορά');return;}
+    const logs=await sbGet('hm_offer_logs',`offer_id=eq.${editId}`);
+    if(!logs.length){alert('Δεν υπάρχουν παρατηρήσεις για εξαγωγή.');return;}
+
+    const offerCats=offer.cats||[];
+    const catOrder=(k)=>{ if(!k) return -1; const idx=offerCats.indexOf(k); return idx===-1?999:idx; };
+    const sorted=[...logs].sort((a,b)=>{
+      const ca=catOrder(a.category), cb=catOrder(b.category);
+      if(ca!==cb) return ca-cb;
+      return (a.log_date<b.log_date)?-1:(a.log_date>b.log_date?1:0);
+    });
+
+    const esc=(s)=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+    const rowsHtml=sorted.map(l=>{
+      const catTxt=l.category ? (catLabel(l.category)||l.category) : 'Κοινή (όλη η προσφορά)';
+      return `
+        <tr class="obs-row">
+          <td class="cat-cell">${esc(catTxt)}</td>
+          <td class="content-cell">${esc(l.content)}</td>
+        </tr>
+        <tr class="ans-row">
+          <td class="cat-cell ans-label">Απάντηση:</td>
+          <td class="content-cell ans-line">&nbsp;</td>
+        </tr>`;
+    }).join('');
+
+    const css=`
+      table{width:100%;border-collapse:collapse;font-size:12px}
+      td{border:1px solid #ccc;padding:6px 8px;vertical-align:top}
+      .cat-cell{width:20%;font-weight:700;background:#f6f5f2}
+      .content-cell{width:80%}
+      .ans-label{font-weight:400;color:#555}
+      .ans-line{border-bottom:1px solid #999;height:22px}
+      .obs-row td{border-bottom:none}
+      .ans-row td{border-top:none}
+    `;
+
+    const html=commonHead(`Παρατηρήσεις_${offer.no||''}`, css)
+      + commonHeader(offer)
+      + `<table>
+          <thead><tr>
+            <td class="cat-cell" style="background:#1c1a17;color:#fff">Κατηγορία</td>
+            <td class="content-cell" style="background:#1c1a17;color:#fff">Παρατήρηση</td>
+          </tr></thead>
+          <tbody>${rowsHtml}</tbody>
+         </table>`
+      + commonFooter();
+
+    printWindow(html);
+
+  }catch(e){
+    console.error('PDF export error:',e);
+    alert('Σφάλμα κατά την εξαγωγή:\n'+e.message);
+  }finally{
+    btn.textContent=origText;
+    btn.disabled=false;
+  }
 }
 
 // ── Process / Checklist ──────────────────────────────────────────
