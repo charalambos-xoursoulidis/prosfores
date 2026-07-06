@@ -124,6 +124,15 @@ tbody td{padding:10px 13px;vertical-align:middle}
 .setting-item .si-key{font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:4px}
 .setting-item .si-del{background:none;border:none;color:var(--dim);cursor:pointer;font-size:14px;padding:1px 5px;border-radius:3px}
 .setting-item .si-del:hover{color:var(--red);background:var(--red-bg)}
+/* pricelist */
+.pl-net{font-size:9px;padding:2px 7px;border-radius:3px;font-family:var(--mono);font-weight:600}
+.td-calc{text-align:right;font-family:var(--mono);font-size:11px}
+.td-calc.hard1{color:var(--warn)}
+.td-calc.hard2{color:var(--red)}
+.prev-box{background:var(--card);border:1px solid var(--border);border-radius:5px;padding:8px 10px}
+.prev-box .pb-label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+.prev-box .pb-val{font-size:13px;font-weight:600;color:var(--accent)}
+.prev-box .pb-sub{font-size:10px;color:var(--muted);margin-top:2px}
 /* checklist */
 .chk-step{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)}
 .chk-step:last-child{border-bottom:none}
@@ -150,6 +159,7 @@ tbody td{padding:10px 13px;vertical-align:middle}
 <div class="tabs">
   <div class="tab active" onclick="switchTab('list')">📋 Προσφορές</div>
   <div class="tab" onclick="switchTab('report')">⚠️ Εκκρεμότητες</div>
+  <div class="tab" onclick="switchTab('pricelist')">💰 Τιμοκατάλογος</div>
   <div class="tab" onclick="switchTab('settings')">⚙️ Ρυθμίσεις</div>
 </div>
 
@@ -198,6 +208,39 @@ tbody td{padding:10px 13px;vertical-align:middle}
 
   <!-- REPORT -->
   <div id="tab-report" style="display:none"><div id="report-content"></div></div>
+
+  <!-- PRICELIST TAB -->
+  <div id="tab-pricelist" style="display:none">
+    <div class="kpis" style="grid-template-columns:repeat(4,1fr)">
+      <div class="kpi c-acc"><div class="v" id="pl-count">0</div><div class="l">Είδη</div></div>
+      <div class="kpi c-ok"><div class="v" id="pl-avg-mat">—</div><div class="l">Μέση τιμή υλικού</div></div>
+      <div class="kpi c-warn"><div class="v" id="pl-avg-labor">—</div><div class="l">Μέση εργασία/μ</div></div>
+      <div class="kpi c-pur"><div class="v" id="pl-networks">0</div><div class="l">Δίκτυα</div></div>
+    </div>
+    <div class="toolbar">
+      <input class="tinput" id="pl-search" type="text" placeholder="Αναζήτηση είδους..." oninput="renderPricelist()">
+      <select class="tselect" id="pl-net-filter" onchange="renderPricelist()">
+        <option value="">Όλα τα δίκτυα</option>
+      </select>
+      <button class="btn btn-acc ml-auto" onclick="openPriceModal()">+ Νέο Είδος</button>
+    </div>
+    <div class="twrap">
+      <table>
+        <thead><tr>
+          <th>Δίκτυο</th>
+          <th>Περιγραφή</th>
+          <th>Μον.</th>
+          <th style="text-align:right" title="Τιμή υλικού × συντελεστή">Υλικό/μ (βάση)</th>
+          <th style="text-align:right" title="Ώρες × αξία ώρας">Εργασία/μ (βάση)</th>
+          <th style="text-align:right" title="Υλικό + Εργασία (βάση)">Σύνολο/μ</th>
+          <th style="text-align:right" title="Με συντελεστή δυσκολίας 1">Δύσκολο</th>
+          <th style="text-align:right" title="Με συντελεστή δυσκολίας 2">Πιο δύσκολο</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="pl-tbody"></tbody>
+      </table>
+    </div>
+  </div>
 
   <!-- SETTINGS -->
   <div id="tab-settings" style="display:none">
@@ -560,12 +603,14 @@ function renderReport(){
 
 // ── Tabs ───────────────────────────────────────────────────────
 function switchTab(t){
-  document.querySelectorAll('.tab').forEach((b,i)=>b.classList.toggle('active',['list','report','settings'][i]===t));
+  document.querySelectorAll('.tab').forEach((b,i)=>b.classList.toggle('active',['list','report','pricelist','settings'][i]===t));
   document.getElementById('tab-list').style.display=t==='list'?'':'none';
   document.getElementById('tab-report').style.display=t==='report'?'':'none';
+  document.getElementById('tab-pricelist').style.display=t==='pricelist'?'':'none';
   document.getElementById('tab-settings').style.display=t==='settings'?'':'none';
   if(t==='report')renderReport();
   if(t==='settings')renderSettingsPanel();
+  if(t==='pricelist')loadPricelist();
 }
 
 // ── Modal ──────────────────────────────────────────────────────
@@ -1237,6 +1282,210 @@ async function toggleStep(method,stepKey,checked){
   renderList();
 }
 
+// ── Pricelist ────────────────────────────────────────────────────
+let pricelist=[];
+let editPriceId=null;
+
+function plCalc(item,coefMat=1,coefLab=1){
+  const mat=(parseFloat(item.material_price)||0)*(parseFloat(item.material_factor)||1)*coefMat;
+  const hourRate=(parseFloat(item.labor_rate)||165)/8;
+  const lab=(parseFloat(item.labor_hours)||0)*hourRate*coefLab;
+  return {mat,lab,total:mat+lab};
+}
+function plFmt(n){return n.toLocaleString('el-GR',{minimumFractionDigits:2,maximumFractionDigits:2});}
+
+async function loadPricelist(){
+  document.getElementById('pl-tbody').innerHTML='<tr><td colspan="9" class="empty-row">Φόρτωση...</td></tr>';
+  try{
+    const data=await sbGet('hm_pricelist','order=network.asc,description.asc');
+    if(Array.isArray(data)) pricelist=data;
+  }catch(e){console.error(e);}
+  syncPriceNetFilter();
+  renderPricelist();
+}
+
+function syncPriceNetFilter(){
+  const nets=[...new Set(pricelist.map(p=>p.network).filter(Boolean))].sort();
+  const sel=document.getElementById('pl-net-filter');
+  const cur=sel.value;
+  sel.innerHTML='<option value="">Όλα τα δίκτυα</option>';
+  nets.forEach(n=>{const o=document.createElement('option');o.value=o.textContent=n;if(n===cur)o.selected=true;sel.appendChild(o);});
+  // also populate modal network select
+  const msel=document.getElementById('pm-network');
+  if(msel){
+    const mcur=msel.value;
+    msel.innerHTML='<option value="">— Επιλογή —</option>';
+    // fixed networks from settings cats
+    getCats().forEach(c=>{const o=document.createElement('option');o.value=c.key;o.textContent=`${c.label} (${c.key})`;if(c.key===mcur)o.selected=true;msel.appendChild(o);});
+    // any extra networks already in pricelist not in cats
+    nets.filter(n=>!getCats().find(c=>c.key===n)).forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=n;if(n===mcur)o.selected=true;msel.appendChild(o);});
+    // add custom option
+    const oc=document.createElement('option');oc.value='__custom__';oc.textContent='+ Νέο δίκτυο...';msel.appendChild(oc);
+  }
+}
+
+function renderPricelist(){
+  const q=document.getElementById('pl-search').value.toLowerCase();
+  const nf=document.getElementById('pl-net-filter').value;
+  const rows=pricelist.filter(p=>{
+    if(nf&&p.network!==nf)return false;
+    if(q&&!(p.description||'').toLowerCase().includes(q)&&!(p.network||'').toLowerCase().includes(q))return false;
+    return true;
+  });
+
+  // KPIs
+  document.getElementById('pl-count').textContent=pricelist.length;
+  document.getElementById('pl-networks').textContent=[...new Set(pricelist.map(p=>p.network))].filter(Boolean).length;
+  if(pricelist.length){
+    const avgMat=pricelist.reduce((s,p)=>s+plCalc(p).mat,0)/pricelist.length;
+    const avgLab=pricelist.reduce((s,p)=>s+plCalc(p).lab,0)/pricelist.length;
+    document.getElementById('pl-avg-mat').textContent='€'+plFmt(avgMat);
+    document.getElementById('pl-avg-labor').textContent='€'+plFmt(avgLab);
+  }
+
+  const tbody=document.getElementById('pl-tbody');
+  if(!rows.length){tbody.innerHTML='<tr><td colspan="9" class="empty-row">Δεν βρέθηκαν είδη</td></tr>';return;}
+
+  tbody.innerHTML=rows.map(p=>{
+    const base=plCalc(p);
+    const hard1=plCalc(p,p.material_coef1,p.labor_coef1);
+    const hard2=plCalc(p,p.material_coef2,p.labor_coef2);
+    const cat=getCats().find(c=>c.key===p.network);
+    const netPill=`<span class="cpill" data-k="${p.network}">${p.network}</span>`;
+    return `<tr onclick="openPriceModal('${p.id}')">
+      <td>${netPill}</td>
+      <td class="td-bold" style="max-width:220px">${p.description||'—'}</td>
+      <td class="td-mono" style="font-size:10px">${p.unit||'τρ.μ.'}</td>
+      <td class="td-calc">€${plFmt(base.mat)}</td>
+      <td class="td-calc">€${plFmt(base.lab)}</td>
+      <td class="td-calc" style="font-weight:600;color:var(--accent)">€${plFmt(base.total)}</td>
+      <td class="td-calc hard1">€${plFmt(hard1.total)}</td>
+      <td class="td-calc hard2">€${plFmt(hard2.total)}</td>
+      <td onclick="event.stopPropagation()">
+        <button class="btn btn-ghost btn-sm" onclick="openPriceModal('${p.id}')">✏️</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function openPriceModal(id){
+  editPriceId=id||null;
+  const p=id?pricelist.find(x=>x.id===id)||{}:{};
+  document.getElementById('pm-title').textContent=id?'Επεξεργασία Είδους':'Νέο Είδος Τιμοκαταλόγου';
+  document.getElementById('pm-del-btn').style.display=id?'':'none';
+  syncPriceNetFilter();
+  document.getElementById('pm-network').value=p.network||'';
+  document.getElementById('pm-unit').value=p.unit||'τρ.μ.';
+  document.getElementById('pm-desc').value=p.description||'';
+  document.getElementById('pm-mat-price').value=p.material_price||'';
+  document.getElementById('pm-mat-factor').value=p.material_factor||'1.20';
+  document.getElementById('pm-mat-c1').value=p.material_coef1||'1.15';
+  document.getElementById('pm-mat-c2').value=p.material_coef2||'1.35';
+  document.getElementById('pm-labor-h').value=p.labor_hours||'';
+  document.getElementById('pm-labor-rate').value=p.labor_rate||'165';
+  document.getElementById('pm-lab-c1').value=p.labor_coef1||'1.25';
+  document.getElementById('pm-lab-c2').value=p.labor_coef2||'1.50';
+  document.getElementById('pm-notes').value=p.notes||'';
+  calcPreview();
+  document.getElementById('price-modal').style.display='flex';
+}
+
+function closePriceModal(){
+  document.getElementById('price-modal').style.display='none';
+  editPriceId=null;
+}
+function closePriceModalOnBg(e){if(e.target===document.getElementById('price-modal'))closePriceModal();}
+
+function calcPreview(){
+  const item={
+    material_price: parseFloat(document.getElementById('pm-mat-price').value)||0,
+    material_factor: parseFloat(document.getElementById('pm-mat-factor').value)||1,
+    material_coef1: parseFloat(document.getElementById('pm-mat-c1').value)||1,
+    material_coef2: parseFloat(document.getElementById('pm-mat-c2').value)||1,
+    labor_hours:    parseFloat(document.getElementById('pm-labor-h').value)||0,
+    labor_rate:     parseFloat(document.getElementById('pm-labor-rate').value)||165,
+    labor_coef1:    parseFloat(document.getElementById('pm-lab-c1').value)||1,
+    labor_coef2:    parseFloat(document.getElementById('pm-lab-c2').value)||1,
+  };
+  const base=plCalc(item);
+  const h1=plCalc(item,item.material_coef1,item.labor_coef1);
+  const h2=plCalc(item,item.material_coef2,item.labor_coef2);
+  const prev=document.getElementById('pm-preview-content');
+  prev.innerHTML=[
+    {label:'Βάση (κανονικό)',mat:base.mat,lab:base.lab,total:base.total,col:'var(--ok)'},
+    {label:'Δύσκολο (Σ1)',mat:h1.mat,lab:h1.lab,total:h1.total,col:'var(--warn)'},
+    {label:'Πιο δύσκολο (Σ2)',mat:h2.mat,lab:h2.lab,total:h2.total,col:'var(--red)'},
+  ].map(r=>`<div class="prev-box">
+    <div class="pb-label">${r.label}</div>
+    <div class="pb-val" style="color:${r.col}">€${plFmt(r.total)}</div>
+    <div class="pb-sub">Υλ: €${plFmt(r.mat)} · Εργ: €${plFmt(r.lab)}</div>
+  </div>`).join('');
+}
+
+async function savePriceModal(){
+  const netSel=document.getElementById('pm-network').value;
+  if(netSel==='__custom__'){
+    const custom=prompt('Εισάγετε κωδικό νέου δικτύου (π.χ. ΘΕΡ):');
+    if(!custom)return;
+    // add to settings cats
+    const key=custom.trim().toUpperCase();
+    if(key&&!getCats().find(c=>c.key===key)){
+      settings.cats.push({key,label:key});
+      await saveSettingsRemote();
+      syncCatFilter();
+    }
+    document.getElementById('pm-network').value=key;
+  }
+  const network=document.getElementById('pm-network').value;
+  if(!network){alert('Επίλεξε δίκτυο.');return;}
+  const desc=document.getElementById('pm-desc').value.trim();
+  if(!desc){alert('Συμπλήρωσε περιγραφή.');return;}
+
+  const row={
+    network,
+    description: desc,
+    unit: document.getElementById('pm-unit').value,
+    material_price:  parseFloat(document.getElementById('pm-mat-price').value)||0,
+    material_factor: parseFloat(document.getElementById('pm-mat-factor').value)||1,
+    material_coef1:  parseFloat(document.getElementById('pm-mat-c1').value)||1.15,
+    material_coef2:  parseFloat(document.getElementById('pm-mat-c2').value)||1.35,
+    labor_hours:     parseFloat(document.getElementById('pm-labor-h').value)||0,
+    labor_rate:      parseFloat(document.getElementById('pm-labor-rate').value)||165,
+    labor_coef1:     parseFloat(document.getElementById('pm-lab-c1').value)||1.25,
+    labor_coef2:     parseFloat(document.getElementById('pm-lab-c2').value)||1.50,
+    notes:           document.getElementById('pm-notes').value.trim(),
+    updated_at:      new Date().toISOString(),
+  };
+  loading(true);
+  try{
+    if(editPriceId){
+      await sbUpdate('hm_pricelist',editPriceId,row);
+      const i=pricelist.findIndex(p=>p.id===editPriceId);
+      if(i!==-1)pricelist[i]={...pricelist[i],...row};
+    }else{
+      const res=await sbInsert('hm_pricelist',row);
+      if(Array.isArray(res)&&res[0])pricelist.push(res[0]);
+    }
+    closePriceModal();
+    syncPriceNetFilter();
+    renderPricelist();
+  }catch(e){alert('Σφάλμα αποθήκευσης:\n'+e.message);}
+  finally{loading(false);}
+}
+
+async function deletePriceItem(){
+  if(!confirm('Διαγραφή είδους;'))return;
+  loading(true);
+  try{
+    await sbDelete('hm_pricelist',editPriceId);
+    pricelist=pricelist.filter(p=>p.id!==editPriceId);
+    closePriceModal();
+    syncPriceNetFilter();
+    renderPricelist();
+  }catch(e){alert('Σφάλμα:\n'+e.message);}
+  finally{loading(false);}
+}
+
 // ── Init ───────────────────────────────────────────────────────
 let allChecklistRows=[]; // global cache, refreshed on init and after toggles
 
@@ -1292,5 +1541,94 @@ function procBadgeHTML(offer){
 
 init();
 </script>
+<!-- PRICE MODAL -->
+<div class="overlay" id="price-modal" style="display:none" onclick="closePriceModalOnBg(event)">
+  <div class="modal" style="max-width:700px">
+    <div class="modal-head">
+      <h3 id="pm-title">Νέο Είδος Τιμοκαταλόγου</h3>
+      <button class="modal-close" onclick="closePriceModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="fg2">
+        <div class="fg"><label>Δίκτυο</label>
+          <select class="fs" id="pm-network">
+            <option value="">— Επιλογή —</option>
+          </select>
+        </div>
+        <div class="fg"><label>Μονάδα μέτρησης</label>
+          <select class="fs" id="pm-unit">
+            <option value="τρ.μ.">τρ.μ. (τρέχον μέτρο)</option>
+            <option value="τεμ.">τεμ. (τεμάχιο)</option>
+            <option value="μ²">μ² (τετραγωνικό)</option>
+            <option value="μ³">μ³ (κυβικό)</option>
+            <option value="κιλό">κιλό</option>
+            <option value="σετ">σετ</option>
+          </select>
+        </div>
+      </div>
+      <div class="fg"><label>Περιγραφή είδους</label>
+        <input class="fi" id="pm-desc" placeholder="π.χ. Σωλήνας γαλβανιζέ Φ20, Σωλήνας PP-r Φ25...">
+      </div>
+
+      <!-- ΥΛΙΚΟ section -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:12px">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;font-family:var(--mono)">💧 Υλικό</div>
+        <div class="fg2">
+          <div class="fg"><label>Τιμή μονάδας (€)</label>
+            <input class="fi" id="pm-mat-price" type="number" min="0" step="0.01" placeholder="1.65" oninput="calcPreview()">
+          </div>
+          <div class="fg"><label>Συντελεστής προσαύξησης υλικού</label>
+            <input class="fi" id="pm-mat-factor" type="number" min="1" step="0.01" placeholder="1.20" oninput="calcPreview()">
+          </div>
+        </div>
+        <div class="fg2">
+          <div class="fg"><label>Συντελ. επιβάρ. 1 — Πολλά εξαρτήματα</label>
+            <input class="fi" id="pm-mat-c1" type="number" min="1" step="0.01" placeholder="1.15" oninput="calcPreview()">
+          </div>
+          <div class="fg"><label>Συντελ. επιβάρ. 2 — Πάρα πολλά εξαρτήματα</label>
+            <input class="fi" id="pm-mat-c2" type="number" min="1" step="0.01" placeholder="1.35" oninput="calcPreview()">
+          </div>
+        </div>
+      </div>
+
+      <!-- ΕΡΓΑΣΙΑ section -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:12px">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;font-family:var(--mono)">🔧 Εργασία</div>
+        <div class="fg2">
+          <div class="fg"><label>Ώρες εργασίας ανά μονάδα (h)</label>
+            <input class="fi" id="pm-labor-h" type="number" min="0" step="0.01" placeholder="2" oninput="calcPreview()">
+          </div>
+          <div class="fg"><label>Αξία ημεροκάματου (€/8h)</label>
+            <input class="fi" id="pm-labor-rate" type="number" min="0" step="0.01" placeholder="165" oninput="calcPreview()">
+          </div>
+        </div>
+        <div class="fg2">
+          <div class="fg"><label>Συντελ. επιβάρ. 1 — Δύσκολη εργασία</label>
+            <input class="fi" id="pm-lab-c1" type="number" min="1" step="0.01" placeholder="1.25" oninput="calcPreview()">
+          </div>
+          <div class="fg"><label>Συντελ. επιβάρ. 2 — Πολύ δύσκολη εργασία</label>
+            <input class="fi" id="pm-lab-c2" type="number" min="1" step="0.01" placeholder="1.50" oninput="calcPreview()">
+          </div>
+        </div>
+      </div>
+
+      <!-- PREVIEW -->
+      <div id="pm-preview" style="background:var(--accent-bg,#fdf3ec);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;font-family:var(--mono);font-size:11px">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Προεπισκόπηση υπολογισμού</div>
+        <div id="pm-preview-content" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px"></div>
+      </div>
+
+      <div class="fg" style="margin-top:12px"><label>Σημειώσεις</label>
+        <textarea class="fta" id="pm-notes" rows="2" placeholder="Προαιρετικές σημειώσεις..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-danger btn-sm" id="pm-del-btn" onclick="deletePriceItem()" style="display:none;margin-right:auto">🗑 Διαγραφή</button>
+      <button class="btn btn-ghost" onclick="closePriceModal()">Άκυρο</button>
+      <button class="btn btn-acc" onclick="savePriceModal()">💾 Αποθήκευση</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
