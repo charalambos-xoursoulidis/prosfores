@@ -218,18 +218,19 @@ tbody td{padding:10px 13px;vertical-align:middle}
       <div class="kpi c-pur"><div class="v" id="pl-networks">0</div><div class="l">Δίκτυα</div></div>
     </div>
     <div class="toolbar">
-      <input class="tinput" id="pl-search" type="text" placeholder="Αναζήτηση είδους..." oninput="renderPricelist()">
       <select class="tselect" id="pl-net-filter" onchange="renderPricelist()">
         <option value="">Όλα τα δίκτυα</option>
       </select>
+      <input class="tinput" id="pl-desc-filter" type="text" placeholder="Φίλτρο περιγραφής..." oninput="renderPricelist()">
+      <input class="tinput" id="pl-proj-filter" type="text" placeholder="Φίλτρο έργου..." oninput="renderPricelist()">
       <button class="btn btn-acc ml-auto" onclick="openPriceModal()">+ Νέο Είδος</button>
     </div>
     <div class="twrap">
       <table>
         <thead><tr>
-          <th>Δίκτυο</th>
-          <th>Περιγραφή</th>
-          <th>Πρότυπο Έργο</th>
+          <th onclick="plSortBy('network')" style="cursor:pointer">Δίκτυο <span id="plsrt-network"></span></th>
+          <th onclick="plSortBy('description')" style="cursor:pointer">Περιγραφή <span id="plsrt-description"></span></th>
+          <th onclick="plSortBy('reference_project')" style="cursor:pointer">Πρότυπο Έργο <span id="plsrt-reference_project"></span></th>
           <th>Μον.</th>
           <th style="text-align:right" title="Τιμή υλικού × συντελεστή">Υλικό/μ (βάση)</th>
           <th style="text-align:right" title="Ώρες × αξία ώρας">Εργασία/μ (βάση)</th>
@@ -1325,13 +1326,34 @@ function syncPriceNetFilter(){
   }
 }
 
+let plSortField='network', plSortDir=1;
+
+function plSortBy(f){
+  if(plSortField===f) plSortDir*=-1; else{plSortField=f;plSortDir=1;}
+  document.querySelectorAll('[id^="plsrt-"]').forEach(el=>el.textContent='');
+  const el=document.getElementById('plsrt-'+f);
+  if(el) el.textContent=plSortDir===1?'↑':'↓';
+  document.getElementById('plsrt-'+f).style.color='var(--accent)';
+  renderPricelist();
+}
+
 function renderPricelist(){
-  const q=document.getElementById('pl-search').value.toLowerCase();
   const nf=document.getElementById('pl-net-filter').value;
-  const rows=pricelist.filter(p=>{
+  const df=(document.getElementById('pl-desc-filter').value||'').toLowerCase();
+  const pf=(document.getElementById('pl-proj-filter').value||'').toLowerCase();
+
+  let rows=pricelist.filter(p=>{
     if(nf&&p.network!==nf)return false;
-    if(q&&!(p.description||'').toLowerCase().includes(q)&&!(p.network||'').toLowerCase().includes(q)&&!(p.reference_project||'').toLowerCase().includes(q))return false;
+    if(df&&!(p.description||'').toLowerCase().includes(df))return false;
+    if(pf&&!(p.reference_project||'').toLowerCase().includes(pf))return false;
     return true;
+  });
+
+  // Sort
+  rows=[...rows].sort((a,b)=>{
+    const av=(a[plSortField]||'').toLowerCase();
+    const bv=(b[plSortField]||'').toLowerCase();
+    return av<bv?-plSortDir:av>bv?plSortDir:0;
   });
 
   // KPIs
@@ -1547,10 +1569,15 @@ init();
 </script>
 <!-- PRICE MODAL -->
 <div class="overlay" id="price-modal" style="display:none" onclick="closePriceModalOnBg(event)">
-  <div class="modal" style="max-width:700px">
-    <div class="modal-head">
+  <div class="modal" style="max-width:700px;overflow-y:auto;max-height:90vh;display:flex;flex-direction:column">
+    <div class="modal-head" style="position:sticky;top:0;z-index:10;background:var(--card)">
       <h3 id="pm-title">Νέο Είδος Τιμοκαταλόγου</h3>
-      <button class="modal-close" onclick="closePriceModal()">×</button>
+      <div style="display:flex;gap:6px;align-items:center;margin-left:auto">
+        <button class="btn btn-danger btn-sm" id="pm-del-btn" onclick="deletePriceItem()" style="display:none">🗑</button>
+        <button class="btn btn-ghost btn-sm" onclick="closePriceModal()">Άκυρο</button>
+        <button class="btn btn-acc btn-sm" onclick="savePriceModal()">💾 Αποθήκευση</button>
+      </div>
+      <button class="modal-close" onclick="closePriceModal()" style="margin-left:8px">×</button>
     </div>
     <div class="modal-body">
       <div class="fg2">
@@ -1628,11 +1655,6 @@ init();
       <div class="fg" style="margin-top:12px"><label>Σημειώσεις</label>
         <textarea class="fta" id="pm-notes" rows="2" placeholder="Προαιρετικές σημειώσεις..."></textarea>
       </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-danger btn-sm" id="pm-del-btn" onclick="deletePriceItem()" style="display:none;margin-right:auto">🗑 Διαγραφή</button>
-      <button class="btn btn-ghost" onclick="closePriceModal()">Άκυρο</button>
-      <button class="btn btn-acc" onclick="savePriceModal()">💾 Αποθήκευση</button>
     </div>
   </div>
 </div>
