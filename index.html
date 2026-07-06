@@ -249,6 +249,7 @@ tbody td{padding:10px 13px;vertical-align:middle}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:760px">
       <div class="report-section">
         <h4>👤 Μηχανικοί</h4>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:8px">Κλικ στο όνομα για μετονομασία · ✓/⊘ για ενεργοποίηση/απενεργοποίηση · × για οριστική διαγραφή</div>
         <div id="eng-list" style="margin-bottom:10px"></div>
         <div style="display:flex;gap:6px">
           <input class="fi" id="new-eng-inp" placeholder="Όνομα μηχανικού..." maxlength="40"
@@ -258,6 +259,7 @@ tbody td{padding:10px 13px;vertical-align:middle}
       </div>
       <div class="report-section">
         <h4>🏷️ Κατηγορίες</h4>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:8px">Κλικ στο πεδίο για μετονομασία · ✓/⊘ για ενεργοποίηση/απενεργοποίηση · × για οριστική διαγραφή</div>
         <div id="cat-list" style="margin-bottom:10px"></div>
         <div style="display:flex;gap:6px">
           <input class="fi" id="new-cat-settings-inp" placeholder="π.χ. ΗΛΕ — Ηλεκτρολογικά" maxlength="60"
@@ -412,12 +414,30 @@ async function sbGetSetting(key){
 
 // ── State ──────────────────────────────────────────────────────
 const STATUS_META={new:{label:'Νέα',cls:'b-new'},progress:{label:'Σε εξέλιξη',cls:'b-progress'},sent:{label:'Εστάλη',cls:'b-sent'},ok:{label:'Εγκρίθηκε',cls:'b-ok'},lost:{label:'Απορρίφθηκε',cls:'b-lost'}};
-const DEFAULT_CATS=[{key:'ΥΔΡ',label:'Ύδρευση'},{key:'ΑΠΧ',label:'Αποχέτευση'},{key:'ΠΥΡ',label:'Πυρόσβεση'},{key:'ΚΛΜ',label:'Κλιματισμός'},{key:'ΑΕΡ',label:'Αεραγωγοί'}];
-const DEFAULT_ENG=['Χαράλαμπος','Νίκος','Γιώργης'];
+const DEFAULT_CATS=[{key:'ΥΔΡ',label:'Ύδρευση',active:true},{key:'ΑΠΧ',label:'Αποχέτευση',active:true},{key:'ΠΥΡ',label:'Πυρόσβεση',active:true},{key:'ΚΛΜ',label:'Κλιματισμός',active:true},{key:'ΑΕΡ',label:'Αεραγωγοί',active:true}];
+const DEFAULT_ENG=[{name:'Χαράλαμπος',active:true},{name:'Νίκος',active:true},{name:'Γιώργης',active:true}];
 let settings={cats:[...DEFAULT_CATS],engineers:[...DEFAULT_ENG]};
 let offers=[],editId=null,sortField='deadline',sortDir=1,modalCustomCats=[];
-function getCats(){return settings.cats;}
-function getEng(){return settings.engineers;}
+
+// returns only active cats (for dropdowns, checkboxes, pills)
+function getCats(){return(settings.cats||[]).filter(c=>c.active!==false);}
+// returns all cats (for display in settings)
+function getAllCats(){return settings.cats||[];}
+// returns only active engineers (for dropdowns)
+function getEng(){return(settings.engineers||[]).filter(e=>e.active!==false).map(e=>e.name||e);}
+// returns all engineers (for settings panel)
+function getAllEng(){return settings.engineers||[];}
+
+// migrate old format (plain strings) to new object format
+function migrateSettings(s){
+  if(s.engineers&&s.engineers.length&&typeof s.engineers[0]==='string'){
+    s.engineers=s.engineers.map(n=>({name:n,active:true}));
+  }
+  if(s.cats&&s.cats.length&&!s.cats[0].hasOwnProperty('active')){
+    s.cats=s.cats.map(c=>({...c,active:true}));
+  }
+  return s;
+}
 
 // ── Loading ────────────────────────────────────────────────────
 function loading(on){document.getElementById('loading-bar').style.display=on?'block':'none';}
@@ -454,39 +474,96 @@ function syncCatFilter(){
 
 // ── Settings panel ─────────────────────────────────────────────
 function renderSettingsPanel(){
-  const engs=getEng();
+  const engs=getAllEng();
   document.getElementById('eng-list').innerHTML=engs.length
-    ?engs.map((e,i)=>`<div class="setting-item"><span class="si-label">${e}</span><button class="si-del" onclick="deleteEngineer(${i})">×</button></div>`).join('')
+    ?engs.map((e,i)=>{
+      const name=e.name||e;
+      const active=e.active!==false;
+      return `<div class="setting-item" style="${active?'':'opacity:.55'}">
+        <input class="fi" value="${name}" style="flex:1;font-size:12px;padding:4px 8px;background:var(--bg)"
+          onchange="renameEngineer(${i},this.value)" onblur="renameEngineer(${i},this.value)">
+        <button onclick="toggleEngineer(${i})" title="${active?'Απενεργοποίηση':'Ενεργοποίηση'}"
+          style="background:none;border:1px solid var(--border);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:11px;color:${active?'var(--ok)':'var(--muted)'}">${active?'✓ Ενεργός':'⊘ Ανενεργός'}</button>
+        <button class="si-del" onclick="deleteEngineer(${i})" title="Διαγραφή">×</button>
+      </div>`;
+    }).join('')
     :'<div style="font-size:11px;color:var(--muted);padding:4px">Κανένας</div>';
-  const cats=getCats();
+
+  const cats=getAllCats();
   document.getElementById('cat-list').innerHTML=cats.length
-    ?cats.map((c,i)=>`<div class="setting-item"><span class="si-label">${c.label}</span><span class="si-key">${c.key}</span><button class="si-del" onclick="deleteCat(${i})">×</button></div>`).join('')
+    ?cats.map((c,i)=>{
+      const active=c.active!==false;
+      return `<div class="setting-item" style="${active?'':'opacity:.55'}">
+        <input class="fi" value="${c.label}" style="flex:1;font-size:12px;padding:4px 8px;background:var(--bg)"
+          onchange="renameCat(${i},'label',this.value)" onblur="renameCat(${i},'label',this.value)">
+        <input class="fi" value="${c.key}" style="width:60px;font-size:11px;padding:4px 6px;font-family:var(--mono);background:var(--bg)"
+          onchange="renameCat(${i},'key',this.value)" onblur="renameCat(${i},'key',this.value)">
+        <button onclick="toggleCat(${i})" title="${active?'Απενεργοποίηση':'Ενεργοποίηση'}"
+          style="background:none;border:1px solid var(--border);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:11px;color:${active?'var(--ok)':'var(--muted)'}">${active?'✓':'⊘'}</button>
+        <button class="si-del" onclick="deleteCat(${i})" title="Διαγραφή">×</button>
+      </div>`;
+    }).join('')
     :'<div style="font-size:11px;color:var(--muted);padding:4px">Καμία</div>';
 }
+
 async function saveSettingsRemote(){await sbUpsertSetting('main',settings);}
+
+// Engineers
 async function addEngineer(){
   const inp=document.getElementById('new-eng-inp'),val=inp.value.trim();
-  if(!val||getEng().includes(val))return;
-  settings.engineers.push(val);inp.value='';
-  try{await saveSettingsRemote();}catch(e){alert('Σφάλμα αποθήκευσης: '+e.message);}
+  if(!val||getAllEng().find(e=>(e.name||e)===val))return;
+  settings.engineers.push({name:val,active:true});inp.value='';
+  try{await saveSettingsRemote();}catch(e){alert('Σφάλμα: '+e.message);}
+  renderSettingsPanel();syncEng();
+}
+async function renameEngineer(i,val){
+  val=val.trim();if(!val)return;
+  const eng=settings.engineers[i];
+  if((eng.name||eng)===val)return;
+  settings.engineers[i]={...(typeof eng==='string'?{name:eng,active:true}:eng),name:val};
+  try{await saveSettingsRemote();}catch(e){alert('Σφάλμα: '+e.message);}
+  syncEng();
+}
+async function toggleEngineer(i){
+  const eng=settings.engineers[i];
+  const cur=typeof eng==='string'?{name:eng,active:true}:eng;
+  settings.engineers[i]={...cur,active:cur.active===false?true:false};
+  try{await saveSettingsRemote();}catch(e){alert('Σφάλμα: '+e.message);}
   renderSettingsPanel();syncEng();
 }
 async function deleteEngineer(i){
+  if(!confirm('Διαγραφή μηχανικού; Οι υπάρχουσες προσφορές δεν επηρεάζονται.'))return;
   settings.engineers.splice(i,1);
   try{await saveSettingsRemote();}catch(e){alert('Σφάλμα: '+e.message);}
   renderSettingsPanel();syncEng();
 }
+
+// Cats
 async function addCatSetting(){
   const inp=document.getElementById('new-cat-settings-inp'),raw=inp.value.trim();
   if(!raw)return;
   const parts=raw.split(/[—\-–]/);
   const key=parts[0].trim().toUpperCase(),label=parts[1]?parts[1].trim():key;
-  if(!key||getCats().find(c=>c.key===key))return;
-  settings.cats.push({key,label});inp.value='';
+  if(!key||getAllCats().find(c=>c.key===key))return;
+  settings.cats.push({key,label,active:true});inp.value='';
+  try{await saveSettingsRemote();}catch(e){alert('Σφάλμα: '+e.message);}
+  renderSettingsPanel();syncCatFilter();
+}
+async function renameCat(i,field,val){
+  val=val.trim();if(!val)return;
+  if(field==='key')val=val.toUpperCase();
+  if(settings.cats[i][field]===val)return;
+  settings.cats[i]={...settings.cats[i],[field]:val};
+  try{await saveSettingsRemote();}catch(e){alert('Σφάλμα: '+e.message);}
+  syncCatFilter();renderPricelist&&renderPricelist();
+}
+async function toggleCat(i){
+  settings.cats[i]={...settings.cats[i],active:settings.cats[i].active===false?true:false};
   try{await saveSettingsRemote();}catch(e){alert('Σφάλμα: '+e.message);}
   renderSettingsPanel();syncCatFilter();
 }
 async function deleteCat(i){
+  if(!confirm('Διαγραφή κατηγορίας; Οι υπάρχουσες προσφορές δεν επηρεάζονται.'))return;
   settings.cats.splice(i,1);
   try{await saveSettingsRemote();}catch(e){alert('Σφάλμα: '+e.message);}
   renderSettingsPanel();syncCatFilter();
@@ -1522,6 +1599,7 @@ async function init(){
     if(s){
       if(s.cats&&s.cats.length)settings.cats=s.cats;
       if(s.engineers&&s.engineers.length)settings.engineers=s.engineers;
+      migrateSettings(settings);
     }
     const data=await sbGet('hm_offers','order=created_at.desc');
     if(Array.isArray(data))offers=data;
