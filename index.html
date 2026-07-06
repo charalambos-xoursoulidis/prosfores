@@ -229,6 +229,7 @@ tbody td{padding:10px 13px;vertical-align:middle}
         <thead><tr>
           <th>Δίκτυο</th>
           <th>Περιγραφή</th>
+          <th>Πρότυπο Έργο</th>
           <th>Μον.</th>
           <th style="text-align:right" title="Τιμή υλικού × συντελεστή">Υλικό/μ (βάση)</th>
           <th style="text-align:right" title="Ώρες × αξία ώρας">Εργασία/μ (βάση)</th>
@@ -1329,7 +1330,7 @@ function renderPricelist(){
   const nf=document.getElementById('pl-net-filter').value;
   const rows=pricelist.filter(p=>{
     if(nf&&p.network!==nf)return false;
-    if(q&&!(p.description||'').toLowerCase().includes(q)&&!(p.network||'').toLowerCase().includes(q))return false;
+    if(q&&!(p.description||'').toLowerCase().includes(q)&&!(p.network||'').toLowerCase().includes(q)&&!(p.reference_project||'').toLowerCase().includes(q))return false;
     return true;
   });
 
@@ -1344,17 +1345,18 @@ function renderPricelist(){
   }
 
   const tbody=document.getElementById('pl-tbody');
-  if(!rows.length){tbody.innerHTML='<tr><td colspan="9" class="empty-row">Δεν βρέθηκαν είδη</td></tr>';return;}
+  if(!rows.length){tbody.innerHTML='<tr><td colspan="10" class="empty-row">Δεν βρέθηκαν είδη</td></tr>';return;}
 
   tbody.innerHTML=rows.map(p=>{
     const base=plCalc(p);
     const hard1=plCalc(p,p.material_coef1,p.labor_coef1);
     const hard2=plCalc(p,p.material_coef2,p.labor_coef2);
-    const cat=getCats().find(c=>c.key===p.network);
     const netPill=`<span class="cpill" data-k="${p.network}">${p.network}</span>`;
+    const refProj=p.reference_project?`<span style="font-size:10px;color:var(--muted)">${p.reference_project}</span>`:'<span style="color:var(--dim);font-size:10px">—</span>';
     return `<tr onclick="openPriceModal('${p.id}')">
       <td>${netPill}</td>
-      <td class="td-bold" style="max-width:220px">${p.description||'—'}</td>
+      <td class="td-bold" style="max-width:200px">${p.description||'—'}</td>
+      <td>${refProj}</td>
       <td class="td-mono" style="font-size:10px">${p.unit||'τρ.μ.'}</td>
       <td class="td-calc">€${plFmt(base.mat)}</td>
       <td class="td-calc">€${plFmt(base.lab)}</td>
@@ -1377,6 +1379,7 @@ function openPriceModal(id){
   document.getElementById('pm-network').value=p.network||'';
   document.getElementById('pm-unit').value=p.unit||'τρ.μ.';
   document.getElementById('pm-desc').value=p.description||'';
+  document.getElementById('pm-ref-project').value=p.reference_project||'';
   document.getElementById('pm-mat-price').value=p.material_price||'';
   document.getElementById('pm-mat-factor').value=p.material_factor||'1.20';
   document.getElementById('pm-mat-c1').value=p.material_coef1||'1.15';
@@ -1444,6 +1447,7 @@ async function savePriceModal(){
   const row={
     network,
     description: desc,
+    reference_project: document.getElementById('pm-ref-project').value.trim()||null,
     unit: document.getElementById('pm-unit').value,
     material_price:  parseFloat(document.getElementById('pm-mat-price').value)||0,
     material_factor: parseFloat(document.getElementById('pm-mat-factor').value)||1,
@@ -1568,6 +1572,9 @@ init();
       </div>
       <div class="fg"><label>Περιγραφή είδους</label>
         <input class="fi" id="pm-desc" placeholder="π.χ. Σωλήνας γαλβανιζέ Φ20, Σωλήνας PP-r Φ25...">
+      </div>
+      <div class="fg"><label>Πρότυπο Έργο <span style="font-weight:400;color:var(--muted)">(από ποιο έργο προέκυψε η τιμή)</span></label>
+        <input class="fi" id="pm-ref-project" placeholder="π.χ. Sinsay Έδεσσα, Νοσοκομείο Βέροιας...">
       </div>
 
       <!-- ΥΛΙΚΟ section -->
