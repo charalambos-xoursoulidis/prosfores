@@ -1463,7 +1463,10 @@ function renderPricelist(){
       <td class="td-calc hard1">€${plFmt(hard1.total)}</td>
       <td class="td-calc hard2">€${plFmt(hard2.total)}</td>
       <td onclick="event.stopPropagation()">
-        <button class="btn btn-ghost btn-sm" onclick="openPriceModal('${p.id}')">✏️</button>
+        <div class="td-acts">
+          <button class="btn btn-ghost btn-sm" onclick="openPriceModal('${p.id}')" title="Επεξεργασία">✏️</button>
+          <button class="btn btn-ghost btn-sm" onclick="copyPriceItem('${p.id}')" title="Αντιγραφή" style="color:var(--accent)">⧉</button>
+        </div>
       </td>
     </tr>`;
   }).join('');
@@ -1474,6 +1477,7 @@ function openPriceModal(id){
   const p=id?pricelist.find(x=>x.id===id)||{}:{};
   document.getElementById('pm-title').textContent=id?'Επεξεργασία Είδους':'Νέο Είδος Τιμοκαταλόγου';
   document.getElementById('pm-del-btn').style.display=id?'':'none';
+  document.getElementById('pm-copy-btn').style.display=id?'':'none';
   syncPriceNetFilter();
   document.getElementById('pm-network').value=p.network||'';
   document.getElementById('pm-unit').value=p.unit||'τρ.μ.';
@@ -1589,6 +1593,38 @@ async function deletePriceItem(){
   finally{loading(false);}
 }
 
+// copy price item — opens form pre-filled, no id (new record)
+function copyPriceItem(id){
+  const p=pricelist.find(x=>x.id===id);
+  if(!p)return;
+  editPriceId=null; // treat as new
+  document.getElementById('pm-title').textContent='Αντιγραφή Είδους — Νέα Εγγραφή';
+  document.getElementById('pm-del-btn').style.display='none';
+  document.getElementById('pm-copy-btn').style.display='none';
+  syncPriceNetFilter();
+  document.getElementById('pm-network').value=p.network||'';
+  document.getElementById('pm-unit').value=p.unit||'τρ.μ.';
+  document.getElementById('pm-desc').value='(Αντίγραφο) '+p.description;
+  document.getElementById('pm-ref-project').value=p.reference_project||'';
+  document.getElementById('pm-mat-price').value=p.material_price||'';
+  document.getElementById('pm-mat-factor').value=p.material_factor||'1.20';
+  document.getElementById('pm-mat-c1').value=p.material_coef1||'1.15';
+  document.getElementById('pm-mat-c2').value=p.material_coef2||'1.35';
+  document.getElementById('pm-labor-h').value=p.labor_hours||'';
+  document.getElementById('pm-labor-rate').value=p.labor_rate||'165';
+  document.getElementById('pm-lab-c1').value=p.labor_coef1||'1.25';
+  document.getElementById('pm-lab-c2').value=p.labor_coef2||'1.50';
+  document.getElementById('pm-notes').value=p.notes||'';
+  calcPreview();
+  document.getElementById('price-modal').style.display='flex';
+}
+
+// copy from within the open modal
+function copyPriceItemFromModal(){
+  if(!editPriceId)return;
+  copyPriceItem(editPriceId);
+}
+
 // ── Init ───────────────────────────────────────────────────────
 let allChecklistRows=[]; // global cache, refreshed on init and after toggles
 
@@ -1652,6 +1688,7 @@ init();
       <h3 id="pm-title">Νέο Είδος Τιμοκαταλόγου</h3>
       <div style="display:flex;gap:6px;align-items:center;margin-left:auto">
         <button class="btn btn-danger btn-sm" id="pm-del-btn" onclick="deletePriceItem()" style="display:none">🗑</button>
+        <button class="btn btn-ghost btn-sm" id="pm-copy-btn" onclick="copyPriceItemFromModal()" style="display:none" title="Αντιγραφή ως νέο είδος">⧉ Αντιγραφή</button>
         <button class="btn btn-ghost btn-sm" onclick="closePriceModal()">Άκυρο</button>
         <button class="btn btn-acc btn-sm" onclick="savePriceModal()">💾 Αποθήκευση</button>
       </div>
