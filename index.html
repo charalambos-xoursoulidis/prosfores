@@ -1496,6 +1496,12 @@ function openPriceModal(id){
   document.getElementById('calc-labor-rate').value=p.labor_rate||'165';
   document.getElementById('calc-labor-val').value='';
   document.getElementById('calc-labor-result').textContent='— h';
+  // reset material factor calculator
+  document.getElementById('calc-mat-base').value='';
+  document.getElementById('calc-mat-final').value='';
+  document.getElementById('calc-mat-result').textContent='×—';
+  const hint=document.getElementById('calc-mat-base-hint');
+  if(hint) hint.textContent=p.material_price?'(από πεδίο: €'+(parseFloat(p.material_price)||0).toFixed(2)+')'  :'';
   calcPreview();
   document.getElementById('price-modal').style.display='flex';
 }
@@ -1595,6 +1601,41 @@ async function deletePriceItem(){
     renderPricelist();
   }catch(e){alert('Σφάλμα:\n'+e.message);}
   finally{loading(false);}
+}
+
+// ── Material factor calculator ────────────────────────────────────
+function calcMatFactor(){
+  // auto-sync base price from main field
+  const mainPrice=parseFloat(document.getElementById('pm-mat-price').value)||0;
+  const baseInp=document.getElementById('calc-mat-base');
+  const hint=document.getElementById('calc-mat-base-hint');
+  if(mainPrice&&!parseFloat(baseInp.value)){
+    // silently pre-fill if empty
+    baseInp.placeholder=mainPrice.toFixed(2);
+    hint.textContent='(από πεδίο: €'+mainPrice.toFixed(2)+')';
+  }
+  const base=parseFloat(baseInp.value)||mainPrice;
+  const final=parseFloat(document.getElementById('calc-mat-final').value)||0;
+  const el=document.getElementById('calc-mat-result');
+  if(!base||!final){el.textContent='×—';return;}
+  const factor=final/base;
+  el.textContent='×'+factor.toLocaleString('el-GR',{minimumFractionDigits:3,maximumFractionDigits:3});
+}
+
+function applyMatFactor(){
+  const mainPrice=parseFloat(document.getElementById('pm-mat-price').value)||0;
+  const base=parseFloat(document.getElementById('calc-mat-base').value)||mainPrice;
+  const final=parseFloat(document.getElementById('calc-mat-final').value)||0;
+  if(!base||!final){alert('Συμπλήρωσε τιμή μονάδας και τελική τιμή.');return;}
+  const factor=Math.round((final/base)*1000)/1000;
+  document.getElementById('pm-mat-factor').value=factor;
+  calcPreview();
+  // visual feedback
+  const btn=event.target;
+  const orig=btn.textContent;
+  btn.textContent='✓ Εφαρμόστηκε';
+  btn.style.background='var(--accent)';
+  setTimeout(()=>{btn.textContent=orig;btn.style.background='var(--ok,#0f7a5a)';},1500);
 }
 
 // ── Labor hours calculator ────────────────────────────────────────
@@ -1756,12 +1797,34 @@ init();
         <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;font-family:var(--mono)">💧 Υλικό</div>
         <div class="fg2">
           <div class="fg"><label>Τιμή μονάδας (€)</label>
-            <input class="fi" id="pm-mat-price" type="number" min="0" step="0.01" placeholder="1.65" oninput="calcPreview()">
+            <input class="fi" id="pm-mat-price" type="number" min="0" step="0.01" placeholder="1.65" oninput="calcPreview();calcMatFactor()">
           </div>
           <div class="fg"><label>Συντελεστής προσαύξησης υλικού</label>
             <input class="fi" id="pm-mat-factor" type="number" min="1" step="0.01" placeholder="1.20" oninput="calcPreview()">
           </div>
         </div>
+
+        <!-- Βοηθός υπολογισμού συντελεστή -->
+        <div style="background:var(--ok-bg,#edf7f3);border:1px solid var(--ok-border,#9fd9c4);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:10px">
+          <div style="font-size:10px;font-weight:600;color:var(--ok,#0f7a5a);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">🧮 Υπολογισμός συντελεστή από τελική τιμή</div>
+          <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+            <div class="fg" style="flex:1;min-width:120px;margin-bottom:0">
+              <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-family:var(--mono)">Τιμή μονάδας (€) <span id="calc-mat-base-hint" style="color:var(--ok,#0f7a5a);font-weight:600"></span></label>
+              <input class="fi" id="calc-mat-base" type="number" min="0" step="0.01" placeholder="αυτόματα από πεδίο"
+                oninput="calcMatFactor()" style="background:var(--card)">
+            </div>
+            <div class="fg" style="flex:1;min-width:120px;margin-bottom:0">
+              <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-family:var(--mono)">Τελική τιμή υλικού/μ (€)</label>
+              <input class="fi" id="calc-mat-final" type="number" min="0" step="0.01" placeholder="π.χ. 2.20"
+                oninput="calcMatFactor()" style="background:var(--card)">
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px;padding-bottom:2px">
+              <div id="calc-mat-result" style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--ok,#0f7a5a);min-width:60px;text-align:center">×—</div>
+              <button onclick="applyMatFactor()" class="btn btn-sm" style="white-space:nowrap;background:var(--ok,#0f7a5a);color:#fff">↓ Εφαρμογή</button>
+            </div>
+          </div>
+        </div>
+
         <div class="fg2">
           <div class="fg"><label>Συντελ. επιβάρ. 1 — Πολλά εξαρτήματα</label>
             <input class="fi" id="pm-mat-c1" type="number" min="1" step="0.01" placeholder="1.15" oninput="calcPreview()">
