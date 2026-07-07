@@ -1492,6 +1492,10 @@ function openPriceModal(id){
   document.getElementById('pm-lab-c1').value=p.labor_coef1||'1.25';
   document.getElementById('pm-lab-c2').value=p.labor_coef2||'1.50';
   document.getElementById('pm-notes').value=p.notes||'';
+  // pre-fill calculator with same rate, reset calc value
+  document.getElementById('calc-labor-rate').value=p.labor_rate||'165';
+  document.getElementById('calc-labor-val').value='';
+  document.getElementById('calc-labor-result').textContent='— h';
   calcPreview();
   document.getElementById('price-modal').style.display='flex';
 }
@@ -1591,6 +1595,34 @@ async function deletePriceItem(){
     renderPricelist();
   }catch(e){alert('Σφάλμα:\n'+e.message);}
   finally{loading(false);}
+}
+
+// ── Labor hours calculator ────────────────────────────────────────
+function calcLaborHours(){
+  const laborVal=parseFloat(document.getElementById('calc-labor-val').value)||0;
+  const rate=parseFloat(document.getElementById('calc-labor-rate').value)||165;
+  const el=document.getElementById('calc-labor-result');
+  if(!laborVal||!rate){el.textContent='— h';return;}
+  const hourlyRate=rate/8;
+  const hours=laborVal/hourlyRate;
+  el.textContent=hours.toLocaleString('el-GR',{minimumFractionDigits:2,maximumFractionDigits:2})+' h';
+}
+
+function applyLaborHours(){
+  const laborVal=parseFloat(document.getElementById('calc-labor-val').value)||0;
+  const rate=parseFloat(document.getElementById('calc-labor-rate').value)||165;
+  if(!laborVal||!rate){alert('Συμπλήρωσε αξία εργασίας και ημεροκάματο.');return;}
+  const hours=laborVal/(rate/8);
+  const rounded=Math.round(hours*100)/100;
+  document.getElementById('pm-labor-h').value=rounded;
+  // also sync the main labor rate field if they differ
+  document.getElementById('pm-labor-rate').value=rate;
+  calcPreview();
+  // visual feedback
+  const btn=event.target;
+  btn.textContent='✓ Εφαρμόστηκε';
+  btn.style.background='var(--ok)';
+  setTimeout(()=>{btn.textContent='↓ Εφαρμογή';btn.style.background='';},1500);
 }
 
 // copy price item — opens form pre-filled, no id (new record)
@@ -1751,6 +1783,28 @@ init();
             <input class="fi" id="pm-labor-rate" type="number" min="0" step="0.01" placeholder="165" oninput="calcPreview()">
           </div>
         </div>
+
+        <!-- Βοηθός υπολογισμού ωρών -->
+        <div style="background:var(--blue-bg,#eff6ff);border:1px solid var(--blue-border,#93c5fd);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:10px">
+          <div style="font-size:10px;font-weight:600;color:var(--blue,#1d4ed8);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">🧮 Υπολογισμός ωρών από αξία εργασίας</div>
+          <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+            <div class="fg" style="flex:1;min-width:120px;margin-bottom:0">
+              <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-family:var(--mono)">Αξία εργασίας/μ (€)</label>
+              <input class="fi" id="calc-labor-val" type="number" min="0" step="0.01" placeholder="π.χ. 45.00"
+                oninput="calcLaborHours()" style="background:var(--card)">
+            </div>
+            <div class="fg" style="flex:1;min-width:120px;margin-bottom:0">
+              <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-family:var(--mono)">Ημεροκάματο (€/8h)</label>
+              <input class="fi" id="calc-labor-rate" type="number" min="0" step="0.01" placeholder="165"
+                oninput="calcLaborHours()" style="background:var(--card)">
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px;padding-bottom:2px">
+              <div id="calc-labor-result" style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--blue,#1d4ed8);min-width:70px;text-align:center">— h</div>
+              <button onclick="applyLaborHours()" class="btn btn-acc btn-sm" style="white-space:nowrap">↓ Εφαρμογή</button>
+            </div>
+          </div>
+        </div>
+
         <div class="fg2">
           <div class="fg"><label>Συντελ. επιβάρ. 1 — Δύσκολη εργασία</label>
             <input class="fi" id="pm-lab-c1" type="number" min="1" step="0.01" placeholder="1.25" oninput="calcPreview()">
