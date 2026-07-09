@@ -84,9 +84,12 @@ tbody td{padding:10px 13px;vertical-align:middle}
 .dl-warn{color:var(--warn);font-family:var(--mono);font-size:11px;font-weight:600}
 .dl-overdue{color:var(--red);font-family:var(--mono);font-size:11px;font-weight:600}
 .dl-none{color:var(--dim);font-family:var(--mono);font-size:11px}
+/* draggable modals */
 .overlay{position:fixed;inset:0;background:#00000055;z-index:100;display:flex;align-items:center;justify-content:center;padding:20px}
-.modal{background:var(--card);border-radius:var(--r);width:100%;max-width:620px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px #00000030}
-.modal-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)}
+.modal{background:var(--card);border-radius:var(--r);width:100%;max-width:620px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px #00000030;position:relative}
+.modal.dragging{user-select:none;transition:none}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);cursor:grab}
+.modal-head:active{cursor:grabbing}
 .modal-head h3{font-size:14px;font-weight:600}
 .modal-close{background:none;border:none;font-size:18px;color:var(--muted);cursor:pointer;padding:2px 6px;border-radius:4px}
 .modal-close:hover{background:var(--bg)}
@@ -919,6 +922,77 @@ function toggleAcc(head){
   head.nextElementSibling.classList.toggle('open',!isOpen);
 }
 
+// ── Draggable modals ─────────────────────────────────────────────
+function makeDraggable(overlayEl){
+  const modal=overlayEl.querySelector('.modal');
+  if(!modal)return;
+  const head=modal.querySelector('.modal-head');
+  if(!head)return;
+  let startX,startY,startLeft,startTop,dragging=false;
+
+  head.addEventListener('mousedown',e=>{
+    // don't drag if clicking buttons/inputs inside header
+    if(e.target.closest('button,input,select'))return;
+    dragging=true;
+    modal.classList.add('dragging');
+
+    // switch overlay to position:relative so modal can be offset freely
+    overlayEl.style.alignItems='flex-start';
+    overlayEl.style.justifyContent='flex-start';
+
+    // get current modal position
+    const rect=modal.getBoundingClientRect();
+    if(!modal.style.left){
+      modal.style.left=rect.left+'px';
+      modal.style.top=rect.top+'px';
+      modal.style.position='fixed';
+      modal.style.margin='0';
+    }
+    startX=e.clientX;
+    startY=e.clientY;
+    startLeft=parseInt(modal.style.left)||rect.left;
+    startTop=parseInt(modal.style.top)||rect.top;
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove',e=>{
+    if(!dragging)return;
+    const dx=e.clientX-startX;
+    const dy=e.clientY-startY;
+    const newLeft=Math.max(0,Math.min(window.innerWidth-100,startLeft+dx));
+    const newTop=Math.max(0,Math.min(window.innerHeight-60,startTop+dy));
+    modal.style.left=newLeft+'px';
+    modal.style.top=newTop+'px';
+  });
+
+  document.addEventListener('mouseup',()=>{
+    if(!dragging)return;
+    dragging=false;
+    modal.classList.remove('dragging');
+  });
+}
+
+function initDraggableModals(){
+  ['modal','price-modal'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)makeDraggable(el);
+  });
+}
+
+// reset modal position when closing so it reopens centered
+function resetModalPosition(id){
+  const overlay=document.getElementById(id);
+  if(!overlay)return;
+  const modal=overlay.querySelector('.modal');
+  if(!modal)return;
+  modal.style.left='';
+  modal.style.top='';
+  modal.style.position='';
+  modal.style.margin='';
+  overlay.style.alignItems='';
+  overlay.style.justifyContent='';
+}
+
 // ── Modal ──────────────────────────────────────────────────────
 function openModal(id){
   editId=id||null;
@@ -948,7 +1022,7 @@ function openModal(id){
   document.getElementById('mtab-process').style.display=id?'':'none';
   document.getElementById('modal').style.display='flex';
 }
-function closeModal(){document.getElementById('modal').style.display='none';editId=null;modalCustomCats=[];}
+function closeModal(){document.getElementById('modal').style.display='none';editId=null;modalCustomCats=[];resetModalPosition('modal');}
 function closeOnBg(e){if(e.target===document.getElementById('modal'))closeModal();}
 
 async function saveModal(){
@@ -1772,6 +1846,7 @@ function openPriceModal(id){
 function closePriceModal(){
   document.getElementById('price-modal').style.display='none';
   editPriceId=null;
+  resetModalPosition('price-modal');
 }
 function closePriceModalOnBg(e){if(e.target===document.getElementById('price-modal'))closePriceModal();}
 
@@ -1984,6 +2059,7 @@ async function init(){
   }finally{loading(false);}
   syncEng();syncCatFilter();renderList();
   const el=document.getElementById('srt-deadline');if(el)el.textContent='↑';
+  initDraggableModals();
 }
 
 // Calculate process completion % for an offer based on its offer_method
@@ -2018,7 +2094,7 @@ function procBadgeHTML(offer){
 init();
 </script>
 <!-- PRICE MODAL -->
-<div class="overlay" id="price-modal" style="display:none" onclick="closePriceModalOnBg(event)">
+<div class="overlay" id="price-modal" style="display:none">
   <div class="modal" style="max-width:700px;overflow-y:auto;max-height:90vh;display:flex;flex-direction:column">
     <div class="modal-head" style="position:sticky;top:0;z-index:10;background:var(--card)">
       <h3 id="pm-title">Νέο Είδος Τιμοκαταλόγου</h3>
