@@ -133,6 +133,27 @@ tbody td{padding:10px 13px;vertical-align:middle}
 .prev-box .pb-label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
 .prev-box .pb-val{font-size:13px;font-weight:600;color:var(--accent)}
 .prev-box .pb-sub{font-size:10px;color:var(--muted);margin-top:2px}
+/* help / accordion */
+.help-intro{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px;margin-bottom:16px}
+.help-intro h2{font-size:15px;font-weight:600;margin-bottom:6px}
+.help-intro p{font-size:12px;color:var(--muted);line-height:1.6}
+.acc-item{background:var(--card);border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px;overflow:hidden}
+.acc-head{display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer;user-select:none;transition:background .1s}
+.acc-head:hover{background:var(--surface)}
+.acc-head .acc-icon{font-size:16px;flex-shrink:0}
+.acc-head .acc-title{font-size:13px;font-weight:600;flex:1}
+.acc-head .acc-arrow{color:var(--muted);font-size:12px;transition:transform .2s;flex-shrink:0}
+.acc-head.open .acc-arrow{transform:rotate(90deg)}
+.acc-body{display:none;padding:0 18px 16px;font-size:12px;line-height:1.7;color:var(--text)}
+.acc-body.open{display:block}
+.acc-body h4{font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 6px;font-family:var(--mono)}
+.acc-body ul{padding-left:18px;margin:4px 0}
+.acc-body li{margin-bottom:3px}
+.acc-body .tip{background:var(--warn-bg);border-left:3px solid var(--warn);border-radius:0 4px 4px 0;padding:6px 10px;margin:8px 0;font-size:11px;color:var(--warn)}
+.acc-body .tip::before{content:'💡 ';font-style:normal}
+.acc-body .note{background:var(--blue-bg,#eff6ff);border-left:3px solid var(--blue,#1d4ed8);border-radius:0 4px 4px 0;padding:6px 10px;margin:8px 0;font-size:11px;color:var(--blue,#1d4ed8)}
+.acc-body .note::before{content:'ℹ️ ';font-style:normal}
+.acc-body code{background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-family:var(--mono);font-size:11px;color:var(--accent)}
 /* checklist */
 .chk-step{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)}
 .chk-step:last-child{border-bottom:none}
@@ -161,6 +182,7 @@ tbody td{padding:10px 13px;vertical-align:middle}
   <div class="tab" onclick="switchTab('report')">⚠️ Εκκρεμότητες</div>
   <div class="tab" onclick="switchTab('pricelist')">💰 Τιμοκατάλογος</div>
   <div class="tab" onclick="switchTab('settings')">⚙️ Ρυθμίσεις</div>
+  <div class="tab" onclick="switchTab('help')">❓ Οδηγίες</div>
 </div>
 
 <div class="content">
@@ -245,6 +267,204 @@ tbody td{padding:10px 13px;vertical-align:middle}
   </div>
 
   <!-- SETTINGS -->
+  <!-- HELP TAB -->
+  <div id="tab-help" style="display:none">
+    <div class="help-intro">
+      <h2>Σύστημα Διαχείρισης Προσφορών — ΑΦΟΙ Χουρσουλίδη</h2>
+      <p>Το σύστημα αποθηκεύει όλα τα δεδομένα στο <strong>Supabase</strong> (cloud) — προσβάσιμο από οποιαδήποτε συσκευή, οποτεδήποτε, χωρίς εγκατάσταση. Κάθε αλλαγή αποθηκεύεται αυτόματα. Κάνε κλικ σε κάθε ενότητα για να δεις τις οδηγίες.</p>
+    </div>
+
+    <!-- Προσφορές -->
+    <div class="acc-item">
+      <div class="acc-head" onclick="toggleAcc(this)">
+        <span class="acc-icon">📋</span>
+        <span class="acc-title">Προσφορές — Κεντρική Λίστα</span>
+        <span class="acc-arrow">▶</span>
+      </div>
+      <div class="acc-body">
+        <h4>Δημιουργία νέας προσφοράς</h4>
+        <ul>
+          <li>Πάτα <strong>"+ Νέα Προσφορά"</strong> πάνω δεξιά.</li>
+          <li>Συμπλήρωσε: αριθμό προσφοράς, πελάτη, αντικείμενο, μηχανικό και προθεσμία παράδοσης.</li>
+          <li>Επίλεξε τις <strong>κατηγορίες εγκατάστασης</strong> (ΥΔΡ, ΑΠΧ, ΠΥΡ, ΚΛΜ, ΑΕΡ) — μπορείς να προσθέσεις και custom.</li>
+          <li>Το <strong>συνολικό ποσό</strong> το συμπληρώνεις αφού συντάξεις την προσφορά εξωτερικά.</li>
+        </ul>
+        <h4>Κατάσταση προσφοράς</h4>
+        <ul>
+          <li><strong>Νέα</strong> — μόλις δημιουργήθηκε</li>
+          <li><strong>Σε εξέλιξη</strong> — συντάσσεται</li>
+          <li><strong>Εστάλη</strong> — απεστάλη στον πελάτη, αναμένεται απάντηση</li>
+          <li><strong>Εγκρίθηκε / Απορρίφθηκε</strong> — τελική κατάσταση</li>
+        </ul>
+        <h4>Φίλτρα &amp; ταξινόμηση</h4>
+        <ul>
+          <li>Αναζήτηση ελεύθερου κειμένου, φίλτρο κατάστασης, μηχανικού, κατηγορίας.</li>
+          <li>Κλικ στην επικεφαλίδα κάθε στήλης για ταξινόμηση (↑↓).</li>
+        </ul>
+        <div class="tip">Η στήλη "Διαδικασία" δείχνει την πρόοδο του checklist — κόκκινο &lt;50%, κίτρινο 50-99%, πράσινο 100%.</div>
+        <h4>Κουμπιά ανά γραμμή</h4>
+        <ul>
+          <li><strong>✏️</strong> — Επεξεργασία στοιχείων</li>
+          <li><strong>📝</strong> — Άνοιγμα απευθείας στην καρτέλα Παρατηρήσεις</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Παρατηρήσεις -->
+    <div class="acc-item">
+      <div class="acc-head" onclick="toggleAcc(this)">
+        <span class="acc-icon">📝</span>
+        <span class="acc-title">Παρατηρήσεις — Τεχνικό Ημερολόγιο</span>
+        <span class="acc-arrow">▶</span>
+      </div>
+      <div class="acc-body">
+        <h4>Πώς λειτουργεί</h4>
+        <p>Κάθε προσφορά έχει ξεχωριστό ημερολόγιο παρατηρήσεων. Βρίσκεται στην καρτέλα <strong>📝 Παρατηρήσεις</strong> μέσα στο παράθυρο κάθε προσφοράς.</p>
+        <h4>Προσθήκη παρατήρησης</h4>
+        <ul>
+          <li>Επίλεξε <strong>ημερομηνία</strong> και <strong>κατηγορία</strong> (π.χ. ΚΛΜ για κλιματισμό, ή "Κοινή" για όλη την προσφορά).</li>
+          <li>Γράψε το κείμενο και πάτα <strong>"+ Προσθήκη"</strong>.</li>
+        </ul>
+        <h4>Ταξινόμηση</h4>
+        <p>Οι παρατηρήσεις εμφανίζονται με <strong>κοινές πρώτα</strong>, μετά ανά κατηγορία με τη σειρά που εμφανίζονται στην προσφορά.</p>
+        <div class="tip">Χρησιμοποίησε κατηγορία ΚΛΜ για παρατηρήσεις κλιματισμού, ΠΥΡ για πυρόσβεση κλπ — έτσι το εξαγόμενο έγγραφο είναι οργανωμένο ανά δίκτυο.</div>
+        <h4>Εξαγωγή</h4>
+        <ul>
+          <li><strong>🖨 PDF</strong> — ανοίγει νέο παράθυρο με εκτυπώσιμη μορφή. Από εκεί "Αποθήκευση ως PDF".</li>
+          <li><strong>📄 Word</strong> — κατεβάζει <code>.docx</code> με πίνακα παρατηρήσεων και κενή γραμμή απάντησης. Ανοίγει σε Word ή LibreOffice (δωρεάν).</li>
+        </ul>
+        <div class="note">Και τα δύο έγγραφα περιλαμβάνουν επικεφαλίδα με λογότυπο, "ΧΟΥΡΣΟΥΛΙΔΗΣ", Προς και Έργο.</div>
+      </div>
+    </div>
+
+    <!-- Διαδικασία -->
+    <div class="acc-item">
+      <div class="acc-head" onclick="toggleAcc(this)">
+        <span class="acc-icon">⚙️</span>
+        <span class="acc-title">Διαδικασία — Checklist Σύνταξης</span>
+        <span class="acc-arrow">▶</span>
+      </div>
+      <div class="acc-body">
+        <h4>Πώς λειτουργεί</h4>
+        <p>Η καρτέλα <strong>⚙️ Διαδικασία</strong> μέσα σε κάθε προσφορά περιέχει βήμα-βήμα checklist για τον τρόπο σύνταξης.</p>
+        <h4>Επιλογή τρόπου προσφοράς</h4>
+        <ul>
+          <li><strong>BOQ</strong> — 29 βήματα με υποπεριπτώσεις (ανάλυση BOQ, μελέτη προδιαγραφών, κοστολόγηση, πρόσβαση κλπ)</li>
+          <li><strong>Κατ' αποκοπή</strong> — απλοποιημένη ροή για ολοκληρωμένο πακέτο</li>
+          <li><strong>Άλλο</strong> — γενικός σκελετός, προς αναθεώρηση</li>
+        </ul>
+        <div class="tip">Μπορείς να αλλάξεις τον τρόπο οποιαδήποτε στιγμή — τα τσεκαρισμένα βήματα του παλιού τρόπου διατηρούνται ανεπηρέαστα στη βάση.</div>
+        <h4>Τσεκάρισμα βημάτων</h4>
+        <ul>
+          <li>Κάθε βήμα αποθηκεύεται αμέσως χωρίς ανανέωση της σελίδας — δεν χάνεις θέση στη λίστα.</li>
+          <li>Η μπάρα προόδου ενημερώνεται αυτόματα.</li>
+          <li>Η πρόοδος φαίνεται και στην κεντρική λίστα προσφορών (στήλη "Διαδικασία").</li>
+        </ul>
+        <h4>Εκτύπωση</h4>
+        <p>Το κουμπί <strong>🖨 Εκτύπωση Διαδικασίας</strong> παράγει εκτυπώσιμη λίστα με ✓ στα ολοκληρωμένα βήματα, μπάρα προόδου και στοιχεία έργου.</p>
+      </div>
+    </div>
+
+    <!-- Τιμοκατάλογος -->
+    <div class="acc-item">
+      <div class="acc-head" onclick="toggleAcc(this)">
+        <span class="acc-icon">💰</span>
+        <span class="acc-title">Τιμοκατάλογος — Κοστολόγηση ανά Μέτρο</span>
+        <span class="acc-arrow">▶</span>
+      </div>
+      <div class="acc-body">
+        <h4>Τι είναι</h4>
+        <p>Κοινός τιμοκατάλογος για όλες τις προσφορές. Κάθε είδος έχει κόστος υλικού και εργασίας ανά μονάδα, με τρία σενάρια: <strong>κανονικό, δύσκολο, πιο δύσκολο</strong>.</p>
+        <h4>Υπολογισμός κόστους</h4>
+        <ul>
+          <li><strong>Υλικό/μ</strong> = Τιμή μονάδας × Συντελεστής προσαύξησης</li>
+          <li><strong>Εργασία/μ</strong> = Ώρες × (Ημεροκάματο ÷ 8)</li>
+          <li><strong>Δύσκολο / Πιο δύσκολο</strong> = Εφαρμογή συντελεστών επιβάρυνσης στο υλικό και στην εργασία</li>
+        </ul>
+        <h4>Βοηθοί υπολογισμού</h4>
+        <ul>
+          <li><strong>🧮 Συντελεστής υλικού</strong> — δίνεις τελική τιμή, υπολογίζει αυτόματα τον συντελεστή προσαύξησης.</li>
+          <li><strong>🧮 Ώρες εργασίας</strong> — δίνεις αξία εργασίας/μ, υπολογίζει ώρες από το ημεροκάματο.</li>
+          <li>Και στους δύο: πάτα <strong>"↓ Εφαρμογή"</strong> για να μεταφερθεί το αποτέλεσμα στο πεδίο.</li>
+        </ul>
+        <div class="tip">Χρησιμοποίησε <strong>⧉ Αντιγραφή</strong> για να δημιουργήσεις παρόμοιο είδος (π.χ. ίδιος σωλήνας, διαφορετική διατομή).</div>
+        <h4>Πρότυπο Έργο</h4>
+        <p>Καταγράφει από ποιο έργο προέκυψε η τιμή — χρήσιμο για σύγκριση και ανίχνευση παλαιών δεδομένων.</p>
+        <h4>Φίλτρα &amp; ταξινόμηση</h4>
+        <p>Φίλτρο ανά δίκτυο, περιγραφή, έργο. Ταξινόμηση στις τρεις πρώτες στήλες με κλικ στην επικεφαλίδα.</p>
+      </div>
+    </div>
+
+    <!-- Εκκρεμότητες -->
+    <div class="acc-item">
+      <div class="acc-head" onclick="toggleAcc(this)">
+        <span class="acc-icon">⚠️</span>
+        <span class="acc-title">Εκκρεμότητες — Έκθεση Παρακολούθησης</span>
+        <span class="acc-arrow">▶</span>
+      </div>
+      <div class="acc-body">
+        <h4>Τι περιλαμβάνει</h4>
+        <ul>
+          <li><strong>⛔ Εκπρόθεσμες</strong> — προσφορές που η παράδοση πέρασε</li>
+          <li><strong>⚠️ Παράδοση ≤14 ημέρες</strong> — επείγουσες</li>
+          <li><strong>👤 Χωρίς μηχανικό</strong> — δεν έχει ανατεθεί σε κανέναν</li>
+          <li><strong>📅 Χωρίς προθεσμία</strong> — δεν έχει ορισθεί deadline</li>
+          <li><strong>💶 Χωρίς ποσό</strong> — δεν έχει συμπληρωθεί η αξία</li>
+        </ul>
+        <div class="note">Η έκθεση δείχνει μόνο <strong>ενεργές</strong> προσφορές — όσες είναι Εγκρίθηκε ή Απορρίφθηκε εξαιρούνται.</div>
+        <h4>Πώς αξιοποιείται</h4>
+        <p>Άνοιξε την καρτέλα Εκκρεμότητες κάθε πρωί για γρήγορη επισκόπηση. Κλικ σε οποιαδήποτε εγγραφή ανοίγει απευθείας την προσφορά για επεξεργασία.</p>
+      </div>
+    </div>
+
+    <!-- Ρυθμίσεις -->
+    <div class="acc-item">
+      <div class="acc-head" onclick="toggleAcc(this)">
+        <span class="acc-icon">⚙️</span>
+        <span class="acc-title">Ρυθμίσεις — Μηχανικοί &amp; Κατηγορίες</span>
+        <span class="acc-arrow">▶</span>
+      </div>
+      <div class="acc-body">
+        <h4>Μηχανικοί</h4>
+        <ul>
+          <li><strong>Προσθήκη</strong> — γράψε το όνομα και Enter ή "+ Προσθήκη".</li>
+          <li><strong>Μετονομασία</strong> — κλικ στο πεδίο ονόματος, άλλαξε και φύγε από το πεδίο (blur).</li>
+          <li><strong>⊘ Απενεργοποίηση</strong> — εξαφανίζεται από τα dropdowns, αλλά οι παλιές προσφορές κρατούν το όνομά του.</li>
+          <li><strong>× Διαγραφή</strong> — οριστική, μόνο αν είσαι σίγουρος.</li>
+        </ul>
+        <h4>Κατηγορίες</h4>
+        <ul>
+          <li>Ίδια λογική με τους μηχανικούς.</li>
+          <li>Νέα κατηγορία με μορφή <code>ΚΩΔ — Περιγραφή</code>, π.χ. <code>ΘΕΡ — Θέρμανση</code>.</li>
+          <li>Ο κωδικός εμφανίζεται ως pill στις προσφορές και τον τιμοκατάλογο.</li>
+        </ul>
+        <div class="note">Οι ρυθμίσεις αποθηκεύονται στη Supabase — ενημερώνονται σε όλες τις συσκευές της ομάδας αυτόματα.</div>
+      </div>
+    </div>
+
+    <!-- Tips -->
+    <div class="acc-item">
+      <div class="acc-head" onclick="toggleAcc(this)">
+        <span class="acc-icon">💡</span>
+        <span class="acc-title">Χρήσιμες Συμβουλές &amp; Συχνές Ερωτήσεις</span>
+        <span class="acc-arrow">▶</span>
+      </div>
+      <div class="acc-body">
+        <h4>Το παράθυρο δεν κλείνει αν κάνω κλικ έξω</h4>
+        <p>Σωστό — είναι σκόπιμο για να μην χάνεις αλλαγές κατά λάθος. Κλείσε με <strong>×</strong> ή <strong>Άκυρο</strong>.</p>
+        <h4>Πώς ενημερώνω τα δεδομένα από άλλη συσκευή</h4>
+        <p>Κάνε <strong>Ctrl+R</strong> (ή ανανέωση σελίδας) — τα δεδομένα φορτώνουν πάντα από τη Supabase.</p>
+        <h4>Backup προγράμματος</h4>
+        <p>Το πρόγραμμα βρίσκεται στο GitHub Pages — κάνε download το <code>index.html</code> τακτικά. Τα δεδομένα είναι ασφαλή στη Supabase ανεξάρτητα.</p>
+        <h4>Εκτύπωση pop-up μπλοκαρισμένο</h4>
+        <p>Αν ο browser μπλοκάρει το παράθυρο εκτύπωσης/PDF, πάτα στη γραμμή διεύθυνσης <strong>"Να επιτρέπονται τα αναδυόμενα παράθυρα"</strong> και ξαναδοκίμασε.</p>
+        <h4>Προσθήκη custom κατηγορίας σε παρατήρηση</h4>
+        <p>Στη φόρμα παρατήρησης, κάτω από τα checkboxes υπάρχει πεδίο "Νέα κατηγορία..." — γράψε τον κωδικό και Enter.</p>
+        <div class="tip">Για να φαίνεται το σύστημα σωστά σε κινητό, άνοιξε τη διεύθυνση από τον browser του κινητού (Chrome/Safari) — λειτουργεί πλήρως.</div>
+      </div>
+    </div>
+  </div>
+
   <div id="tab-settings" style="display:none">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:760px">
       <div class="report-section">
@@ -273,7 +493,7 @@ tbody td{padding:10px 13px;vertical-align:middle}
 </div>
 
 <!-- MODAL -->
-<div class="overlay" id="modal" style="display:none" onclick="closeOnBg(event)">
+<div class="overlay" id="modal" style="display:none">
   <div class="modal" style="max-width:880px">
     <div class="modal-head">
       <h3 id="modal-title">Νέα Προσφορά</h3>
@@ -682,14 +902,21 @@ function renderReport(){
 
 // ── Tabs ───────────────────────────────────────────────────────
 function switchTab(t){
-  document.querySelectorAll('.tab').forEach((b,i)=>b.classList.toggle('active',['list','report','pricelist','settings'][i]===t));
+  document.querySelectorAll('.tab').forEach((b,i)=>b.classList.toggle('active',['list','report','pricelist','settings','help'][i]===t));
   document.getElementById('tab-list').style.display=t==='list'?'':'none';
   document.getElementById('tab-report').style.display=t==='report'?'':'none';
   document.getElementById('tab-pricelist').style.display=t==='pricelist'?'':'none';
   document.getElementById('tab-settings').style.display=t==='settings'?'':'none';
+  document.getElementById('tab-help').style.display=t==='help'?'':'none';
   if(t==='report')renderReport();
   if(t==='settings')renderSettingsPanel();
   if(t==='pricelist')loadPricelist();
+}
+
+function toggleAcc(head){
+  const isOpen=head.classList.contains('open');
+  head.classList.toggle('open',!isOpen);
+  head.nextElementSibling.classList.toggle('open',!isOpen);
 }
 
 // ── Modal ──────────────────────────────────────────────────────
@@ -1308,7 +1535,6 @@ async function renderChecklist(method){
   let checkedMap={};
   try{
     const rows=await sbGet('hm_offer_checklist',`offer_id=eq.${editId}&order=updated_at.asc`);
-    // iterate in ascending update order so the LAST write for each step_key wins
     rows.forEach(r=>{ if(r.step_key.startsWith(method+':')) checkedMap[r.step_key]=r.checked; });
   }catch(e){console.error('Checklist load error:',e);}
 
@@ -1320,45 +1546,82 @@ async function renderChecklist(method){
     const fullKey=`${method}:${s.key}`;
     const isChecked=!!checkedMap[fullKey];
     const cls=['chk-step', s.main?'main':'', s.sub?'sub':'', isChecked?'done':''].filter(Boolean).join(' ');
-    return `<label class="${cls}">
-      <input type="checkbox" ${isChecked?'checked':''} onchange="toggleStep('${method}','${s.key}',this.checked)">
+    return `<label class="${cls}" id="chkrow-${method}-${s.key.replace(/\./g,'_')}">
+      <input type="checkbox" ${isChecked?'checked':''} onchange="toggleStep('${method}','${s.key}',this.checked,this)">
       <span class="chk-label">${s.label}</span>
     </label>`;
   }).join('');
 
   box.innerHTML=`
-    <div class="chk-progress" style="margin:-1px -20px 0">
-      <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">${doneCount}/${total}</span>
-      <div class="chk-progress-bar"><div class="chk-progress-fill" style="width:${pct}%"></div></div>
-      <span class="chk-progress-pct">${pct}%</span>
+    <div class="chk-progress" style="margin:-1px -20px 0" id="chk-progress-bar-wrap">
+      <span style="font-size:11px;color:var(--muted);font-family:var(--mono)" id="chk-progress-txt">${doneCount}/${total}</span>
+      <div class="chk-progress-bar"><div class="chk-progress-fill" style="width:${pct}%" id="chk-progress-fill"></div></div>
+      <span class="chk-progress-pct" id="chk-progress-pct">${pct}%</span>
     </div>
     <div style="padding-top:8px">${stepsHtml}</div>
   `;
 }
 
-async function toggleStep(method,stepKey,checked){
+// Update only the progress bar without re-rendering the list
+function updateProgressBar(method){
+  const steps=PROCESS_STEPS[method]||[];
+  const total=steps.length;
+  const doneCount=steps.filter(s=>{
+    const rowId='chkrow-'+method+'-'+s.key.replace(/\./g,'_');
+    const row=document.getElementById(rowId);
+    if(!row)return false;
+    const cb=row.querySelector('input[type="checkbox"]');
+    return cb&&cb.checked;
+  }).length;
+  const pct=total?Math.round(doneCount/total*100):0;
+  const fill=document.getElementById('chk-progress-fill');
+  const txt=document.getElementById('chk-progress-txt');
+  const pctEl=document.getElementById('chk-progress-pct');
+  if(fill){
+    fill.style.width=pct+'%';
+    fill.style.background=pct===100?'var(--ok)':pct>=50?'var(--warn)':'var(--red)';
+  }
+  if(txt) txt.textContent=doneCount+'/'+total;
+  if(pctEl) pctEl.textContent=pct+'%';
+  // update the list view's progress bar too
+  renderList();
+}
+
+async function toggleStep(method,stepKey,checked,cbEl){
   const fullKey=`${method}:${stepKey}`;
+  // Update row style immediately without scroll
+  const rowId='chkrow-'+method+'-'+stepKey.replace(/\./g,'_');
+  const row=document.getElementById(rowId);
+  if(row){
+    if(checked) row.classList.add('done'); else row.classList.remove('done');
+  }
+  updateProgressBar(method);
+
+  // Persist to Supabase in background
   try{
-    // check if a row already exists for this offer+step
     const existing=await sbGet('hm_offer_checklist',`offer_id=eq.${editId}&step_key=eq.${encodeURIComponent(fullKey)}`);
     if(Array.isArray(existing)&&existing.length){
-      // update ALL matching rows (in case of legacy duplicates) to the same state
-      for(const row of existing){
-        await fetch(`${SB}/rest/v1/hm_offer_checklist?id=eq.${row.id}`,{
+      for(const r of existing){
+        await fetch(`${SB}/rest/v1/hm_offer_checklist?id=eq.${r.id}`,{
           method:'PATCH',headers:H,
-          body:JSON.stringify({checked,checked_at:checked?new Date().toISOString():null})
+          body:JSON.stringify({checked,checked_at:checked?new Date().toISOString():null,updated_at:new Date().toISOString()})
         });
       }
     }else{
       await sbInsert('hm_offer_checklist',{offer_id:editId,step_key:fullKey,checked,checked_at:checked?new Date().toISOString():null});
     }
-    // update local cache used by the list view's progress bar
+    // update local cache
     const idx=allChecklistRows.findIndex(r=>r.offer_id===editId&&r.step_key===fullKey);
     if(idx!==-1)allChecklistRows[idx].checked=checked;
     else allChecklistRows.push({offer_id:editId,step_key:fullKey,checked});
-  }catch(e){console.error('toggleStep error:',e);alert('Σφάλμα αποθήκευσης: '+e.message);}
-  renderChecklist(method);
-  renderList();
+  }catch(e){
+    console.error('toggleStep error:',e);
+    // revert UI on failure
+    if(cbEl) cbEl.checked=!checked;
+    if(row){if(!checked) row.classList.add('done'); else row.classList.remove('done');}
+    updateProgressBar(method);
+    alert('Σφάλμα αποθήκευσης: '+e.message);
+  }
 }
 
 // ── Pricelist ────────────────────────────────────────────────────
@@ -1796,7 +2059,7 @@ init();
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:12px">
         <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;font-family:var(--mono)">💧 Υλικό</div>
         <div class="fg2">
-          <div class="fg"><label>Τιμή μονάδας (€)</label>
+          <div class="fg"><label>Αγορά m Σωλήνα (€)</label>
             <input class="fi" id="pm-mat-price" type="number" min="0" step="0.01" placeholder="1.65" oninput="calcPreview();calcMatFactor()">
           </div>
           <div class="fg"><label>Συντελεστής προσαύξησης υλικού</label>
@@ -1809,12 +2072,12 @@ init();
           <div style="font-size:10px;font-weight:600;color:var(--ok,#0f7a5a);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">🧮 Υπολογισμός συντελεστή από τελική τιμή</div>
           <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
             <div class="fg" style="flex:1;min-width:120px;margin-bottom:0">
-              <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-family:var(--mono)">Τιμή μονάδας (€) <span id="calc-mat-base-hint" style="color:var(--ok,#0f7a5a);font-weight:600"></span></label>
+              <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-family:var(--mono)">Αγορά m Σωλήνα (€) <span id="calc-mat-base-hint" style="color:var(--ok,#0f7a5a);font-weight:600"></span></label>
               <input class="fi" id="calc-mat-base" type="number" min="0" step="0.01" placeholder="αυτόματα από πεδίο"
                 oninput="calcMatFactor()" style="background:var(--card)">
             </div>
             <div class="fg" style="flex:1;min-width:120px;margin-bottom:0">
-              <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-family:var(--mono)">Τελική τιμή υλικού/μ (€)</label>
+              <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-family:var(--mono)">Κόστος Τρέχον m (€)</label>
               <input class="fi" id="calc-mat-final" type="number" min="0" step="0.01" placeholder="π.χ. 2.20"
                 oninput="calcMatFactor()" style="background:var(--card)">
             </div>
@@ -1852,7 +2115,7 @@ init();
           <div style="font-size:10px;font-weight:600;color:var(--blue,#1d4ed8);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">🧮 Υπολογισμός ωρών από αξία εργασίας</div>
           <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
             <div class="fg" style="flex:1;min-width:120px;margin-bottom:0">
-              <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-family:var(--mono)">Αξία εργασίας/μ (€)</label>
+              <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-family:var(--mono)">Κόστος Εργασίας Τρέχον m (€)</label>
               <input class="fi" id="calc-labor-val" type="number" min="0" step="0.01" placeholder="π.χ. 45.00"
                 oninput="calcLaborHours()" style="background:var(--card)">
             </div>
