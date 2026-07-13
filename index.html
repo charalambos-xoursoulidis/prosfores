@@ -29,11 +29,11 @@ body::before{
   transform:translate(-50%,-50%);opacity:.05;pointer-events:none;z-index:0;
 }
 #loading-bar{position:fixed;top:0;left:0;right:0;height:3px;background:var(--accent);z-index:9999;display:none}
-.topbar{display:flex;align-items:center;gap:12px;padding:0 18px;height:48px;background:var(--text);color:#f0ede8;position:relative;z-index:1}
+.topbar{display:flex;align-items:center;gap:12px;padding:0 18px;height:48px;background:var(--text);color:#f0ede8;position:sticky;top:0;z-index:50}
 .topbar-logo-img{height:28px;width:28px;object-fit:contain;flex-shrink:0}
 .topbar-logo{font-size:13px;font-weight:600;flex:1;display:flex;align-items:center;gap:10px}.topbar-logo span{color:#f0a06a}
 .topbar-sub{font-size:10px;color:#9a9488;font-family:var(--mono)}
-.tabs{display:flex;background:var(--card);border-bottom:1px solid var(--border);position:relative;z-index:1}
+.tabs{display:flex;background:var(--card);border-bottom:1px solid var(--border);position:sticky;top:48px;z-index:49}
 .content{padding:18px;max-width:1100px;margin:0 auto;position:relative;z-index:1}
 .tab{padding:10px 20px;font-size:12px;font-weight:500;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;user-select:none}
 .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
@@ -236,13 +236,7 @@ tbody td{padding:10px 13px;vertical-align:middle}
 
   <!-- PRICELIST TAB -->
   <div id="tab-pricelist" style="display:none">
-    <div class="kpis" style="grid-template-columns:repeat(4,1fr)">
-      <div class="kpi c-acc"><div class="v" id="pl-count">0</div><div class="l">Είδη</div></div>
-      <div class="kpi c-ok"><div class="v" id="pl-avg-mat">—</div><div class="l">Μέση τιμή υλικού</div></div>
-      <div class="kpi c-warn"><div class="v" id="pl-avg-labor">—</div><div class="l">Μέση εργασία/μ</div></div>
-      <div class="kpi c-pur"><div class="v" id="pl-networks">0</div><div class="l">Δίκτυα</div></div>
-    </div>
-    <div class="toolbar">
+    <div class="toolbar" style="position:sticky;top:96px;z-index:40;background:var(--bg);padding-top:10px;padding-bottom:10px;margin-bottom:0">
       <select class="tselect" id="pl-net-filter" onchange="renderPricelist()">
         <option value="">Όλα τα δίκτυα</option>
       </select>
@@ -250,9 +244,9 @@ tbody td{padding:10px 13px;vertical-align:middle}
       <input class="tinput" id="pl-proj-filter" type="text" placeholder="Φίλτρο έργου..." oninput="renderPricelist()">
       <button class="btn btn-acc ml-auto" onclick="openPriceModal()">+ Νέο Είδος</button>
     </div>
-    <div class="twrap">
+    <div class="twrap" style="overflow:visible;border-radius:var(--r)">
       <table>
-        <thead><tr>
+        <thead style="position:sticky;top:148px;z-index:39"><tr>
           <th onclick="plSortBy('network')" style="cursor:pointer">Δίκτυο <span id="plsrt-network"></span></th>
           <th onclick="plSortBy('description')" style="cursor:pointer">Περιγραφή <span id="plsrt-description"></span></th>
           <th onclick="plSortBy('reference_project')" style="cursor:pointer">Πρότυπο Έργο <span id="plsrt-reference_project"></span></th>
@@ -1783,16 +1777,6 @@ function renderPricelist(){
     const bv=(b[plSortField]||'').toLowerCase();
     return av<bv?-plSortDir:av>bv?plSortDir:0;
   });
-
-  // KPIs
-  document.getElementById('pl-count').textContent=pricelist.length;
-  document.getElementById('pl-networks').textContent=[...new Set(pricelist.map(p=>p.network))].filter(Boolean).length;
-  if(pricelist.length){
-    const avgMat=pricelist.reduce((s,p)=>s+plCalc(p).mat,0)/pricelist.length;
-    const avgLab=pricelist.reduce((s,p)=>s+plCalc(p).lab,0)/pricelist.length;
-    document.getElementById('pl-avg-mat').textContent='€'+plFmt(avgMat);
-    document.getElementById('pl-avg-labor').textContent='€'+plFmt(avgLab);
-  }
 
   const tbody=document.getElementById('pl-tbody');
   if(!rows.length){tbody.innerHTML='<tr><td colspan="10" class="empty-row">Δεν βρέθηκαν είδη</td></tr>';return;}
