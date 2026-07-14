@@ -191,14 +191,14 @@ tbody td{padding:10px 13px;vertical-align:middle}
 <div class="content">
   <!-- LIST -->
   <div id="tab-list">
-    <div class="kpis">
+    <div class="kpis" style="position:sticky;top:89px;z-index:42;background:var(--bg);padding-top:8px;padding-bottom:4px;margin-bottom:0">
       <div class="kpi c-acc"><div class="v" id="k-total">0</div><div class="l">Σύνολο</div></div>
       <div class="kpi c-warn"><div class="v" id="k-progress">0</div><div class="l">Σε εξέλιξη</div></div>
       <div class="kpi c-pur"><div class="v" id="k-sent">0</div><div class="l">Εστάλησαν</div></div>
       <div class="kpi c-ok"><div class="v" id="k-ok">0</div><div class="l">Εγκρίθηκαν</div></div>
       <div class="kpi c-red"><div class="v" id="k-overdue">0</div><div class="l">Εκπρόθεσμες</div></div>
     </div>
-    <div class="toolbar">
+    <div class="toolbar" style="position:sticky;top:179px;z-index:41;background:var(--bg);padding-top:8px;padding-bottom:8px;margin-bottom:0">
       <input class="tinput" id="s-search" type="text" placeholder="Αναζήτηση..." oninput="renderList()">
       <select class="tselect" id="s-status" onchange="renderList()">
         <option value="">Όλες</option>
