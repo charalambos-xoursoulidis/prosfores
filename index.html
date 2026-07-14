@@ -214,7 +214,7 @@ tbody td{padding:10px 13px;vertical-align:middle}
     </div>
     <div class="twrap" style="overflow:visible">
       <table>
-        <thead id="offers-thead" style="position:sticky;z-index:39"><tr>
+        <thead style="position:sticky;top:231px;z-index:39"><tr>
           <th onclick="sortBy('no')">Αρ. <span id="srt-no"></span></th>
           <th onclick="sortBy('client')">Πελάτης <span id="srt-client"></span></th>
           <th>Αντικείμενο</th>
@@ -857,8 +857,6 @@ function renderList(){
       </div></td>
     </tr>`;
   }).join('');
-  // re-check thead sticky position after DOM update
-  setTimeout(setStickyOffersThead, 0);
 }
 
 // ── Render report ──────────────────────────────────────────────
@@ -973,26 +971,8 @@ function initDraggableModals(){
     const el=document.getElementById(id);
     if(el)makeDraggable(el);
   });
-  // set sticky top for offers thead dynamically — delay to allow layout to settle
-  setTimeout(setStickyOffersThead, 100);
-  setTimeout(setStickyOffersThead, 500);
-  window.addEventListener('resize', setStickyOffersThead);
 }
 
-function setStickyOffersThead(){
-  const thead=document.getElementById('offers-thead');
-  if(!thead)return;
-  const topbar=document.querySelector('.topbar');
-  const tabs=document.querySelector('.tabs');
-  const kpis=document.querySelector('#tab-list .kpis');
-  const toolbar=document.querySelector('#tab-list .toolbar');
-  let top=0;
-  if(topbar) top+=topbar.getBoundingClientRect().height;
-  if(tabs) top+=tabs.getBoundingClientRect().height;
-  if(kpis) top+=kpis.getBoundingClientRect().height;
-  if(toolbar) top+=toolbar.getBoundingClientRect().height;
-  thead.style.top=Math.round(top)+'px';
-}
 
 // reset modal position when closing so it reopens centered
 function resetModalPosition(id){
