@@ -212,9 +212,9 @@ tbody td{padding:10px 13px;vertical-align:middle}
       <select class="tselect" id="s-cat" onchange="renderList()"><option value="">Όλες κατηγορίες</option></select>
       <button class="btn btn-acc ml-auto" onclick="openModal()">+ Νέα Προσφορά</button>
     </div>
-    <div class="twrap">
+    <div class="twrap" style="overflow:visible">
       <table>
-        <thead><tr>
+        <thead id="offers-thead" style="position:sticky;z-index:39"><tr>
           <th onclick="sortBy('no')">Αρ. <span id="srt-no"></span></th>
           <th onclick="sortBy('client')">Πελάτης <span id="srt-client"></span></th>
           <th>Αντικείμενο</th>
@@ -971,6 +971,24 @@ function initDraggableModals(){
     const el=document.getElementById(id);
     if(el)makeDraggable(el);
   });
+  // set sticky top for offers thead dynamically
+  setStickyOffersThead();
+  window.addEventListener('resize', setStickyOffersThead);
+}
+
+function setStickyOffersThead(){
+  const thead=document.getElementById('offers-thead');
+  if(!thead)return;
+  const topbar=document.querySelector('.topbar');
+  const tabs=document.querySelector('.tabs');
+  const kpis=document.querySelector('#tab-list .kpis');
+  const toolbar=document.querySelector('#tab-list .toolbar');
+  let top=0;
+  if(topbar) top+=topbar.offsetHeight;
+  if(tabs) top+=tabs.offsetHeight;
+  if(kpis) top+=kpis.offsetHeight;
+  if(toolbar) top+=toolbar.offsetHeight;
+  thead.style.top=top+'px';
 }
 
 // reset modal position when closing so it reopens centered
