@@ -857,6 +857,8 @@ function renderList(){
       </div></td>
     </tr>`;
   }).join('');
+  // re-check thead sticky position after DOM update
+  setTimeout(setStickyOffersThead, 0);
 }
 
 // ── Render report ──────────────────────────────────────────────
@@ -971,8 +973,9 @@ function initDraggableModals(){
     const el=document.getElementById(id);
     if(el)makeDraggable(el);
   });
-  // set sticky top for offers thead dynamically
-  setStickyOffersThead();
+  // set sticky top for offers thead dynamically — delay to allow layout to settle
+  setTimeout(setStickyOffersThead, 100);
+  setTimeout(setStickyOffersThead, 500);
   window.addEventListener('resize', setStickyOffersThead);
 }
 
@@ -984,11 +987,11 @@ function setStickyOffersThead(){
   const kpis=document.querySelector('#tab-list .kpis');
   const toolbar=document.querySelector('#tab-list .toolbar');
   let top=0;
-  if(topbar) top+=topbar.offsetHeight;
-  if(tabs) top+=tabs.offsetHeight;
-  if(kpis) top+=kpis.offsetHeight;
-  if(toolbar) top+=toolbar.offsetHeight;
-  thead.style.top=top+'px';
+  if(topbar) top+=topbar.getBoundingClientRect().height;
+  if(tabs) top+=tabs.getBoundingClientRect().height;
+  if(kpis) top+=kpis.getBoundingClientRect().height;
+  if(toolbar) top+=toolbar.getBoundingClientRect().height;
+  thead.style.top=Math.round(top)+'px';
 }
 
 // reset modal position when closing so it reopens centered
