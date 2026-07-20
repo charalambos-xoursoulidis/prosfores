@@ -992,7 +992,8 @@ function resetModalPosition(id){
 function openModal(id){
   editId=id||null;
   const o=id?offers.find(x=>x.id===id)||{}:{};
-  document.getElementById('modal-title').textContent=id?'Επεξεργασία':'Νέα Προσφορά';
+  const titleParts=[o.client,o.project].filter(Boolean).join(' · ');
+  document.getElementById('modal-title').textContent=id?(titleParts||'Επεξεργασία'):'Νέα Προσφορά';
   document.getElementById('del-btn').style.display=id?'':'none';
   document.getElementById('m-no').value=o.no||('PRO-'+String(offers.length+1).padStart(3,'0'));
   document.getElementById('m-date').value=o.date||new Date().toISOString().slice(0,10);
