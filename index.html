@@ -3,9 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ΗΜ Προσφορές – Διαχείριση v3.0</title>
+<title>ΗΜ Προσφορές – Διαχείριση v3.1</title>
 <link rel="icon" type="image/png" id="favicon-link" href="">
 <script src="https://unpkg.com/docx@8.5.0/build/index.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -176,7 +177,7 @@ tbody td{padding:10px 13px;vertical-align:middle}
 <div id="loading-bar"></div>
 
 <div class="topbar">
-  <div class="topbar-logo"><img id="topbar-logo-img" class="topbar-logo-img" src="" alt="Λογότυπο"> ΑΦΟΙ Χουρσουλίδη <span>·</span> Διαχείριση Προσφορών <em class="app-ver">v3.0</em></div>
+  <div class="topbar-logo"><img id="topbar-logo-img" class="topbar-logo-img" src="" alt="Λογότυπο"> ΑΦΟΙ Χουρσουλίδη <span>·</span> Διαχείριση Προσφορών <em class="app-ver">v3.1</em></div>
   <div class="topbar-sub" id="tb-info">Φόρτωση...</div>
 </div>
 
@@ -271,17 +272,32 @@ tbody td{padding:10px 13px;vertical-align:middle}
         <option value="">Όλα τα δίκτυα</option>
       </select>
       <input class="tinput" id="wt-desc-filter" type="text" placeholder="Φίλτρο εργασίας..." oninput="renderWorktimes()">
-      <input class="tinput" id="wt-proj-filter" type="text" placeholder="Φίλτρο έργου..." oninput="renderWorktimes()">
-      <button class="btn btn-acc ml-auto" onclick="openWtModal()">+ Νέο Είδος Εργασίας</button>
+      <input class="tinput" id="wt-proj-filter" type="text" placeholder="Φίλτρο έργου / BoQ..." oninput="renderWorktimes()">
+      <select class="tselect" id="wt-src-filter" onchange="renderWorktimes()">
+        <option value="">Όλες οι πηγές</option>
+        <option>Εκτίμηση</option><option>Πραγματικά</option><option>ΑΤΗΕ</option><option>Βιβλιογραφία</option>
+      </select>
+      <span id="wt-count" style="font-size:11px;color:var(--muted)"></span>
+      <div class="ml-auto" style="display:flex;gap:6px;align-items:center">
+        <span id="wt-file-name" title="Αρχείο Excel της βάσης" style="font-size:10px;color:var(--muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+        <button class="btn btn-ghost btn-sm" onclick="wtExportExcel()" title="Αποθήκευση της βάσης στο αρχείο Excel του δίσκου">⬇ Εξαγωγή Excel</button>
+        <button class="btn btn-ghost btn-sm" onclick="wtImportExcel()" title="Ενημέρωση της βάσης από το αρχείο Excel">⬆ Εισαγωγή Excel</button>
+        <button class="btn btn-ghost btn-sm" onclick="wtChooseFileAndExport()" title="Επιλογή/αλλαγή αρχείου Excel στον δίσκο">📁</button>
+        <input type="file" id="wt-file-input" accept=".xlsx" style="display:none" onchange="wtImportFromInput(this)">
+        <button class="btn btn-acc" onclick="openWtModal()">+ Νέο Είδος Εργασίας</button>
+      </div>
     </div>
     <div class="twrap" style="overflow:visible;border-radius:var(--r)">
       <table>
         <thead style="position:sticky;top:148px;z-index:39"><tr>
           <th onclick="wtSortBy('network')" style="cursor:pointer">Δίκτυο <span id="wtsrt-network"></span></th>
           <th onclick="wtSortBy('description')" style="cursor:pointer">Είδος Εργασίας <span id="wtsrt-description"></span></th>
-          <th onclick="wtSortBy('reference_project')" style="cursor:pointer">Πρότυπο Έργο <span id="wtsrt-reference_project"></span></th>
+          <th onclick="wtSortBy('size')" style="cursor:pointer">Διατομή <span id="wtsrt-size"></span></th>
           <th>Μον.</th>
-          <th style="text-align:right" onclick="wtSortBy('hours')" style="cursor:pointer">Εργατοώρες/μον. <span id="wtsrt-hours"></span></th>
+          <th style="text-align:right;cursor:pointer" onclick="wtSortBy('hours')">Εργατοώρες/μον. <span id="wtsrt-hours"></span></th>
+          <th onclick="wtSortBy('source_type')" style="cursor:pointer">Πηγή <span id="wtsrt-source_type"></span></th>
+          <th onclick="wtSortBy('boq_source')" style="cursor:pointer">BoQ προέλευσης <span id="wtsrt-boq_source"></span></th>
+          <th onclick="wtSortBy('reference_project')" style="cursor:pointer">Πρότυπο Έργο <span id="wtsrt-reference_project"></span></th>
           <th>Σημειώσεις</th>
           <th></th>
         </tr></thead>
@@ -684,6 +700,7 @@ function migrateSettings(s){
 }
 
 // ── Loading ────────────────────────────────────────────────────
+function esc(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function loading(on){document.getElementById('loading-bar').style.display=on?'block':'none';}
 
 // ── Helpers ────────────────────────────────────────────────────
@@ -936,7 +953,7 @@ function switchTab(t){
   if(t==='report')renderReport();
   if(t==='settings')renderSettingsPanel();
   if(t==='pricelist')loadPricelist();
-  if(t==='worktimes')loadWorktimes();
+  if(t==='worktimes'){loadWorktimes();wtShowFileName();}
 }
 
 function toggleAcc(head){
@@ -2073,13 +2090,13 @@ let wtSortField='network', wtSortDir=1;
 function wtFmt(n){return (parseFloat(n)||0).toLocaleString('el-GR',{minimumFractionDigits:2,maximumFractionDigits:2});}
 
 async function loadWorktimes(){
-  document.getElementById('wt-tbody').innerHTML='<tr><td colspan="7" class="empty-row">Φόρτωση...</td></tr>';
+  document.getElementById('wt-tbody').innerHTML='<tr><td colspan="10" class="empty-row">Φόρτωση...</td></tr>';
   try{
     const data=await sbGet('hm_worktimes','order=network.asc,description.asc');
     if(Array.isArray(data)) worktimes=data;
   }catch(e){
     console.error(e);
-    document.getElementById('wt-tbody').innerHTML='<tr><td colspan="7" class="empty-row" style="color:var(--red)">Σφάλμα: '+e.message+'</td></tr>';
+    document.getElementById('wt-tbody').innerHTML='<tr><td colspan="10" class="empty-row" style="color:var(--red)">Σφάλμα: '+e.message+'</td></tr>';
     return;
   }
   syncWtNetFilter();
@@ -2115,11 +2132,13 @@ function renderWorktimes(){
   const nf=document.getElementById('wt-net-filter').value;
   const df=(document.getElementById('wt-desc-filter').value||'').toLowerCase();
   const pf=(document.getElementById('wt-proj-filter').value||'').toLowerCase();
+  const sf=document.getElementById('wt-src-filter').value;
 
   let rows=worktimes.filter(w=>{
     if(nf&&w.network!==nf)return false;
-    if(df&&!(w.description||'').toLowerCase().includes(df))return false;
-    if(pf&&!(w.reference_project||'').toLowerCase().includes(pf))return false;
+    if(df&&!((w.description||'')+' '+(w.size||'')).toLowerCase().includes(df))return false;
+    if(pf&&!((w.reference_project||'')+' '+(w.boq_source||'')).toLowerCase().includes(pf))return false;
+    if(sf&&(w.source_type||'Εκτίμηση')!==sf)return false;
     return true;
   });
 
@@ -2134,18 +2153,24 @@ function renderWorktimes(){
   });
 
   const tbody=document.getElementById('wt-tbody');
-  if(!rows.length){tbody.innerHTML='<tr><td colspan="7" class="empty-row">Δεν βρέθηκαν είδη εργασίας</td></tr>';return;}
+  const cnt=document.getElementById('wt-count'); if(cnt)cnt.textContent=rows.length+' / '+worktimes.length;
+  if(!rows.length){tbody.innerHTML='<tr><td colspan="10" class="empty-row">Δεν βρέθηκαν είδη εργασίας</td></tr>';return;}
 
   tbody.innerHTML=rows.map(w=>{
     const netPill=`<span class="cpill" data-k="${w.network}">${w.network}</span>`;
-    const refProj=w.reference_project?`<span style="font-size:10px;color:var(--muted)">${w.reference_project}</span>`:'<span style="color:var(--dim);font-size:10px">—</span>';
-    const notes=w.notes?`<span style="font-size:10px;color:var(--muted)">${w.notes}</span>`:'<span style="color:var(--dim);font-size:10px">—</span>';
+    const refProj=w.reference_project?`<span style="font-size:10px;color:var(--muted)">${esc(w.reference_project)}</span>`:'<span style="color:var(--dim);font-size:10px">—</span>';
+    const boqBits=[w.boq_source,w.boq_article,w.boq_date?wtDateGr(w.boq_date):''].filter(Boolean).map(esc).join(' · ');
+    const boqCell=boqBits?`<span style="font-size:10px;color:var(--muted)">${boqBits}</span>`:'<span style="color:var(--dim);font-size:10px">—</span>';
+    const notes=w.notes?`<span style="font-size:10px;color:var(--muted)">${esc(w.notes)}</span>`:'<span style="color:var(--dim);font-size:10px">—</span>';
     return `<tr onclick="openWtModal('${w.id}')">
       <td>${netPill}</td>
-      <td class="td-bold" style="max-width:240px">${w.description||'—'}</td>
-      <td>${refProj}</td>
+      <td class="td-bold" style="max-width:240px">${esc(w.description||'—')}</td>
+      <td class="td-mono" style="font-size:10px">${esc(w.size||'—')}</td>
       <td class="td-mono" style="font-size:10px">${w.unit||'τρ.μ.'}</td>
       <td class="td-calc" style="font-weight:600;color:var(--accent)">${wtFmt(w.hours)} h</td>
+      <td><span style="font-size:10px;color:${(w.source_type==='Πραγματικά')?'var(--green,#1D9E75)':'var(--muted)'}">${esc(w.source_type||'Εκτίμηση')}</span></td>
+      <td style="max-width:200px">${boqCell}</td>
+      <td>${refProj}</td>
       <td style="max-width:180px">${notes}</td>
       <td onclick="event.stopPropagation()">
         <div class="td-acts">
@@ -2168,8 +2193,14 @@ function openWtModal(id){
   document.getElementById('wt-unit').value=w.unit||'τρ.μ.';
   document.getElementById('wt-desc').value=w.description||'';
   document.getElementById('wt-ref-project').value=w.reference_project||'';
+  document.getElementById('wt-size').value=w.size||'';
+  document.getElementById('wt-source').value=w.source_type||'Εκτίμηση';
+  document.getElementById('wt-boq').value=w.boq_source||'';
+  document.getElementById('wt-article').value=w.boq_article||'';
+  document.getElementById('wt-date').value=w.boq_date?String(w.boq_date).slice(0,10):'';
   document.getElementById('wt-hours').value=w.hours||'';
   document.getElementById('wt-notes').value=w.notes||'';
+  if(!id&&!document.getElementById('wt-date').value)document.getElementById('wt-date').value=new Date().toISOString().slice(0,10);
   document.getElementById('wt-modal').style.display='flex';
 }
 
@@ -2204,6 +2235,11 @@ async function saveWtModal(){
     unit: document.getElementById('wt-unit').value,
     hours: parseFloat(document.getElementById('wt-hours').value)||0,
     notes: document.getElementById('wt-notes').value.trim()||null,
+    size: document.getElementById('wt-size').value.trim()||null,
+    source_type: document.getElementById('wt-source').value||'Εκτίμηση',
+    boq_source: document.getElementById('wt-boq').value.trim()||null,
+    boq_article: document.getElementById('wt-article').value.trim()||null,
+    boq_date: document.getElementById('wt-date').value||null,
     updated_at: new Date().toISOString(),
   };
   loading(true);
@@ -2248,6 +2284,11 @@ function copyWtItem(id){
   document.getElementById('wt-unit').value=w.unit||'τρ.μ.';
   document.getElementById('wt-desc').value='(Αντίγραφο) '+w.description;
   document.getElementById('wt-ref-project').value=w.reference_project||'';
+  document.getElementById('wt-size').value=w.size||'';
+  document.getElementById('wt-source').value=w.source_type||'Εκτίμηση';
+  document.getElementById('wt-boq').value=w.boq_source||'';
+  document.getElementById('wt-article').value=w.boq_article||'';
+  document.getElementById('wt-date').value=w.boq_date?String(w.boq_date).slice(0,10):'';
   document.getElementById('wt-hours').value=w.hours||'';
   document.getElementById('wt-notes').value=w.notes||'';
   document.getElementById('wt-modal').style.display='flex';
@@ -2257,6 +2298,330 @@ function copyWtItemFromModal(){
   if(!editWtId)return;
   copyWtItem(editWtId);
 }
+
+// ── Βάση Εργατοωρών ↔ Excel (αμφίδρομος συγχρονισμός) ───────────────
+// Το αρχείο Excel (φύλλο «Εργατοώρες», επικεφαλίδες στη γραμμή 1) αντιστοιχεί 1-1 στον πίνακα hm_worktimes.
+// Στήλη ID = κλειδί. Γραμμή χωρίς ID = νέα εγγραφή. «Χ» στη στήλη Διαγραφή = διαγραφή από τη βάση.
+const WT_SHEET='Εργατοώρες';
+const WT_COLS=[
+  {h:'ID',k:'id',w:38},
+  {h:'Δίκτυο',k:'network',w:10},
+  {h:'Είδος Εργασίας',k:'description',w:48},
+  {h:'Διατομή',k:'size',w:12},
+  {h:'Μονάδα',k:'unit',w:9},
+  {h:'Εργατοώρες/μον.',k:'hours',w:15,num:true},
+  {h:'Πηγή δείκτη',k:'source_type',w:14},
+  {h:'BoQ προέλευσης',k:'boq_source',w:38},
+  {h:'Άρθρο BoQ',k:'boq_article',w:14},
+  {h:'Ημερομηνία',k:'boq_date',w:12,date:true},
+  {h:'Πρότυπο Έργο',k:'reference_project',w:22},
+  {h:'Σημειώσεις',k:'notes',w:40},
+  {h:'Τελ. ενημέρωση',k:'updated_at',w:17,ts:true},
+  {h:'Διαγραφή (Χ)',k:'_del',w:12},
+];
+const WT_FIELDS=['network','description','size','unit','hours','source_type','boq_source','boq_article','boq_date','reference_project','notes'];
+const WT_UNITS=['τρ.μ.','τεμ.','μ²','μ³','κιλό','σετ'];
+const WT_SOURCES=['Εκτίμηση','Πραγματικά','ΑΤΗΕ','Βιβλιογραφία'];
+const WT_DEFAULT_NAME='Βάση_Εργατοωρών.xlsx';
+
+function wtDateGr(d){const x=String(d).slice(0,10).split('-');return x.length===3?`${x[2]}/${x[1]}/${x[0]}`:String(d);}
+
+// — αποθήκευση «χειρολαβής» αρχείου (File System Access API, Chrome/Edge) —
+function wtIdb(){return new Promise((res,rej)=>{const r=indexedDB.open('hm_prosfores',1);r.onupgradeneeded=()=>r.result.createObjectStore('handles');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
+async function wtIdbGet(k){try{const db=await wtIdb();return await new Promise(res=>{const q=db.transaction('handles').objectStore('handles').get(k);q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null);});}catch(e){return null;}}
+async function wtIdbSet(k,v){try{const db=await wtIdb();await new Promise(res=>{const t=db.transaction('handles','readwrite');t.objectStore('handles').put(v,k);t.oncomplete=res;t.onerror=res;});}catch(e){}}
+const wtFsOk=()=>typeof window.showSaveFilePicker==='function';
+async function wtGetHandle(){return wtFsOk()?await wtIdbGet('wt_xlsx'):null;}
+async function wtPerm(h){const o={mode:'readwrite'};try{if(await h.queryPermission(o)==='granted')return true;return (await h.requestPermission(o))==='granted';}catch(e){return false;}}
+async function wtShowFileName(){const el=document.getElementById('wt-file-name');if(!el)return;const h=await wtGetHandle();el.textContent=h?('📄 '+h.name):(wtFsOk()?'Δεν έχει οριστεί αρχείο':'');}
+
+async function wtChooseFileAndExport(){const h=await wtChooseFile();if(h)await wtExportExcel(true);}
+async function wtChooseFile(){
+  if(!wtFsOk()){alert('Ο browser δεν υποστηρίζει απευθείας εγγραφή σε αρχείο (χρησιμοποίησε Chrome ή Edge). Η εξαγωγή θα γίνεται ως λήψη αρχείου.');return null;}
+  const existing=confirm('Επιλογή αρχείου Excel της βάσης εργατοωρών\n\nOK = επιλογή ΥΠΑΡΧΟΝΤΟΣ αρχείου (π.χ. X:\\Προσφορές\\Βάση Εργατοωρών\\'+WT_DEFAULT_NAME+')\nΆκυρο = δημιουργία ΝΕΟΥ αρχείου');
+  const types=[{description:'Excel',accept:{'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':['.xlsx']}}];
+  let h=null;
+  try{
+    if(existing){[h]=await window.showOpenFilePicker({types,id:'wtdb',multiple:false});}
+    else{h=await window.showSaveFilePicker({suggestedName:WT_DEFAULT_NAME,types,id:'wtdb'});}
+  }catch(e){return null;}
+  if(!(await wtPerm(h))){alert('Δεν δόθηκε άδεια εγγραφής στο αρχείο.');return null;}
+  await wtIdbSet('wt_xlsx',h);
+  wtShowFileName();
+  return h;
+}
+
+function showToastSafe(m){if(typeof showToast==='function')showToast(m);else console.log(m);}
+
+// — ανάγνωση κελιού ExcelJS —
+function wtCell(v){
+  if(v==null)return '';
+  if(v instanceof Date)return v;
+  if(typeof v==='object'){
+    if(v.richText)return v.richText.map(t=>t.text).join('');
+    if('result' in v)return wtCell(v.result);
+    if('text' in v)return v.text;
+    return '';
+  }
+  return v;
+}
+const wtTz=d=>d.getTimezoneOffset()*60000;
+function wtToDate(v){ // → 'YYYY-MM-DD' | null
+  v=wtCell(v); if(v===''||v==null)return null;
+  if(v instanceof Date)return `${v.getUTCFullYear()}-${String(v.getUTCMonth()+1).padStart(2,'0')}-${String(v.getUTCDate()).padStart(2,'0')}`;
+  if(typeof v==='number'){const d=new Date(Math.round((v-25569)*864e5));return wtToDate(d);}
+  const s=String(v).trim(); let m;
+  if((m=s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})$/)))return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  if((m=s.match(/^(\d{4})-(\d{2})-(\d{2})/)))return `${m[1]}-${m[2]}-${m[3]}`;
+  return null;
+}
+function wtToTs(v){ // Excel «τοπική» ώρα → ISO
+  v=wtCell(v); if(v===''||v==null)return null;
+  if(v instanceof Date)return new Date(v.getTime()+wtTz(v)).toISOString();
+  const d=new Date(String(v)); return isNaN(d)?null:d.toISOString();
+}
+function wtNorm(k,v){
+  if(k==='hours'){const n=parseFloat(String(v??'').replace(',','.'));return isNaN(n)?0:Math.round(n*10000)/10000;}
+  if(k==='boq_date')return v?String(v).slice(0,10):null;
+  const s=(v==null?'':String(v)).trim();
+  if(k==='source_type')return s||'Εκτίμηση';
+  if(k==='unit')return s||'τρ.μ.';
+  return s||null;
+}
+
+async function wtParseWorkbook(buf){
+  const wb=new ExcelJS.Workbook(); await wb.xlsx.load(buf);
+  const ws=wb.getWorksheet(WT_SHEET)||wb.worksheets[0];
+  if(!ws)throw new Error('Δεν βρέθηκε φύλλο «'+WT_SHEET+'».');
+  const hdr={}; ws.getRow(1).eachCell((c,i)=>{const t=String(wtCell(c.value)).trim();const col=WT_COLS.find(x=>x.h===t);if(col)hdr[col.k]=i;});
+  if(!hdr.description||!hdr.network)throw new Error('Λείπουν οι στήλες «Δίκτυο» / «Είδος Εργασίας» στη γραμμή 1.');
+  const out=[];
+  for(let r=2;r<=ws.rowCount;r++){
+    const row=ws.getRow(r); const g=k=>hdr[k]?row.getCell(hdr[k]).value:null;
+    const id=String(wtCell(g('id'))||'').trim();
+    const desc=String(wtCell(g('description'))||'').trim();
+    if(!id&&!desc)continue;
+    const o={_row:r,id:id||null,_del:/^[χxΧX✓1]/.test(String(wtCell(g('_del'))||'').trim())};
+    WT_FIELDS.forEach(k=>{
+      if(!hdr[k]){o[k]=undefined;return;}
+      if(k==='boq_date')o[k]=wtToDate(g(k));
+      else o[k]=wtNorm(k,wtCell(g(k)));
+    });
+    o.updated_at=wtToTs(g('updated_at'));
+    out.push(o);
+  }
+  return out;
+}
+
+function wtDiff(xrows){
+  const byId=new Map(worktimes.map(w=>[w.id,w]));
+  const key=w=>[w.network,w.description,w.size,w.unit,wtNorm('hours',w.hours),w.boq_source,w.boq_article].map(v=>String(v??'').toLowerCase()).join('|');
+  const keys=new Set(worktimes.map(key));
+  const d={inserts:[],updates:[],conflicts:[],deletes:[],gone:[],invalid:[],dupes:0,same:0,dbOnly:0};
+  const seen=new Set();
+  xrows.forEach(x=>{
+    if(x.id){
+      seen.add(x.id);
+      const db=byId.get(x.id);
+      if(!db){d.gone.push(x);return;}
+      if(x._del){d.deletes.push(x);return;}
+      const ch={};
+      WT_FIELDS.forEach(k=>{if(x[k]===undefined)return;if(wtNorm(k,db[k])!==wtNorm(k,x[k]))ch[k]=wtNorm(k,x[k]);});
+      if(!Object.keys(ch).length){d.same++;return;}
+      if(x.network===null)delete ch.network;
+      if(x.description===null)delete ch.description;
+      const conflict=db.updated_at&&x.updated_at&&(new Date(db.updated_at)-new Date(x.updated_at)>2000);
+      (conflict?d.conflicts:d.updates).push({x,db,ch});
+    }else{
+      if(x._del)return;
+      if(!x.network||!x.description){d.invalid.push(x);return;}
+      const k=key(x); if(keys.has(k)){d.dupes++;return;} keys.add(k);
+      const row={}; WT_FIELDS.forEach(f=>{row[f]=x[f]===undefined?(f==='source_type'?'Εκτίμηση':f==='unit'?'τρ.μ.':f==='hours'?0:null):x[f];});
+      d.inserts.push(row);
+    }
+  });
+  d.dbOnly=worktimes.filter(w=>!seen.has(w.id)).length;
+  d.pending=d.inserts.length+d.updates.length+d.conflicts.length+d.deletes.length;
+  return d;
+}
+
+async function wtBuildWorkbook(list){
+  const wb=new ExcelJS.Workbook(); wb.creator='ΑΦΟΙ Χουρσουλίδη'; wb.created=new Date();
+  const HDR='FF1F3A5F', BORDER={style:'thin',color:{argb:'FFD0D7E2'}};
+  const ws=wb.addWorksheet(WT_SHEET,{views:[{state:'frozen',ySplit:1,xSplit:3}],properties:{tabColor:{argb:'FF1F3A5F'}}});
+  ws.columns=WT_COLS.map(c=>({header:c.h,key:c.k,width:c.w}));
+  const rows=[...list].sort((a,b)=>(a.network||'').localeCompare(b.network||'','el')||(a.description||'').localeCompare(b.description||'','el')||(a.size||'').localeCompare(b.size||'','el',{numeric:true}));
+  rows.forEach(w=>{
+    const o={};
+    WT_COLS.forEach(c=>{
+      let v=w[c.k];
+      if(c.num)v=parseFloat(v)||0;
+      else if(c.date)v=v?new Date(String(v).slice(0,10)+'T00:00:00Z'):null;
+      else if(c.ts){if(v){const d=new Date(v);v=new Date(d.getTime()-wtTz(d));}else v=null;}
+      else if(c.k==='_del')v=null;
+      else v=v??null;
+      o[c.k]=v;
+    });
+    ws.addRow(o);
+  });
+  const hr=ws.getRow(1); hr.height=30;
+  hr.eachCell(c=>{c.font={bold:true,color:{argb:'FFFFFFFF'},size:10};c.fill={type:'pattern',pattern:'solid',fgColor:{argb:HDR}};c.alignment={vertical:'middle',horizontal:'center',wrapText:true};c.border={bottom:BORDER};});
+  const col=k=>WT_COLS.findIndex(c=>c.k===k)+1;
+  const last=Math.max(ws.rowCount,1)+500; // χώρος για νέες γραμμές με λίστες
+  for(let r=2;r<=ws.rowCount;r++){
+    const row=ws.getRow(r);
+    row.getCell(col('id')).font={color:{argb:'FF9AA3AF'},size:8};
+    row.getCell(col('hours')).numFmt='0.00';
+    row.getCell(col('hours')).font={bold:true,color:{argb:'FF7030A0'}};
+    row.getCell(col('boq_date')).numFmt='dd/mm/yyyy';
+    row.getCell(col('updated_at')).numFmt='dd/mm/yyyy hh:mm';
+    row.getCell(col('updated_at')).font={color:{argb:'FF9AA3AF'},size:9};
+    row.getCell(col('description')).alignment={wrapText:true,vertical:'top'};
+    row.getCell(col('notes')).alignment={wrapText:true,vertical:'top'};
+    if(r%2===0)row.eachCell({includeEmpty:true},c=>{if(!c.fill||c.fill.type!=='pattern')c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF5F8FC'}};});
+  }
+  ws.autoFilter={from:{row:1,column:1},to:{row:1,column:WT_COLS.length}};
+  // Λίστες
+  const nets=[...new Set([...getCats().map(c=>c.key),...list.map(w=>w.network).filter(Boolean)])];
+  const L=wb.addWorksheet('Λίστες',{properties:{tabColor:{argb:'FF9AA3AF'}}});
+  L.columns=[{header:'Δίκτυα',key:'a',width:14},{header:'Μονάδες',key:'b',width:12},{header:'Πηγή δείκτη',key:'c',width:16}];
+  const n=Math.max(nets.length,WT_UNITS.length,WT_SOURCES.length);
+  for(let i=0;i<n;i++)L.addRow({a:nets[i]??null,b:WT_UNITS[i]??null,c:WT_SOURCES[i]??null});
+  L.getRow(1).font={bold:true};
+  const dv=(k,f)=>{const c=ws.getColumn(col(k)).letter;ws.dataValidations.add(`${c}2:${c}${last}`,{type:'list',allowBlank:true,showErrorMessage:false,formulae:[f]});};
+  dv('network',`'Λίστες'!$A$2:$A$${nets.length+1}`);
+  dv('unit',`'Λίστες'!$B$2:$B$${WT_UNITS.length+1}`);
+  dv('source_type',`'Λίστες'!$C$2:$C$${WT_SOURCES.length+1}`);
+  dv('_del','"Χ"');
+  // Σύνοψη (όλα με τύπους)
+  const S=wb.addWorksheet('Σύνοψη',{properties:{tabColor:{argb:'FF1D9E75'}}});
+  S.columns=[{header:'Δίκτυο',width:12},{header:'Πλήθος εγγραφών',width:16},{header:'Από Πραγματικά',width:16},{header:'Μέσος όρος h/μον.',width:17},{header:'Ελάχιστο h/μον.',width:15},{header:'Μέγιστο h/μον.',width:15}];
+  const q=`'${WT_SHEET}'!`, B=q+'$B:$B', F=q+'$F:$F', G=q+'$G:$G';
+  nets.forEach((nt,i)=>{const r=i+2;S.addRow([nt,
+    {formula:`COUNTIF(${B},A${r})`},{formula:`COUNTIFS(${B},A${r},${G},"Πραγματικά")`},
+    {formula:`IFERROR(AVERAGEIF(${B},A${r},${F}),0)`},{formula:`IFERROR(_xlfn.MINIFS(${F},${B},A${r}),0)`},{formula:`IFERROR(_xlfn.MAXIFS(${F},${B},A${r}),0)`}]);});
+  const tr=nets.length+2;
+  S.addRow(['ΣΥΝΟΛΟ',{formula:`SUM(B2:B${tr-1})`},{formula:`SUM(C2:C${tr-1})`},null,null,null]);
+  S.getRow(1).eachCell(c=>{c.font={bold:true,color:{argb:'FFFFFFFF'}};c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF1D9E75'}};c.alignment={horizontal:'center',wrapText:true};});
+  S.getRow(tr).font={bold:true};
+  for(let r=2;r<tr;r++)['D','E','F'].forEach(c=>S.getCell(c+r).numFmt='0.00');
+  // Οδηγίες
+  const O=wb.addWorksheet('Οδηγίες'); O.getColumn(1).width=110;
+  ['ΒΑΣΗ ΕΡΓΑΤΟΩΡΩΝ — ΑΦΟΙ Χουρσουλίδη','',
+   'Το αρχείο συγχρονίζεται με την καρτέλα ⏱️ Εργατοώρες του προγράμματος προσφορών (Supabase, πίνακας hm_worktimes).',
+   '• Νέα εγγραφή: γράψε σε κενή γραμμή του φύλλου «Εργατοώρες» ΑΦΗΝΟΝΤΑΣ ΚΕΝΗ τη στήλη ID.',
+   '• Διόρθωση: άλλαξε την τιμή στη γραμμή — ΜΗΝ πειράζεις τη στήλη ID ούτε τη στήλη «Τελ. ενημέρωση».',
+   '• Διαγραφή: βάλε «Χ» στη στήλη «Διαγραφή (Χ)» (μη σβήνεις τη γραμμή — αλλιώς η εγγραφή μένει στη βάση).',
+   '• Μετά τις αλλαγές: κλείσε το Excel και πάτα «⬆ Εισαγωγή Excel» στο πρόγραμμα. Το πρόγραμμα ξαναγράφει το αρχείο με τα νέα ID.',
+   '• Αν η ίδια εγγραφή άλλαξε και στο πρόγραμμα μετά την τελευταία εξαγωγή, η εισαγωγή σε ρωτά ποια τιμή κρατάς.',
+   '• Υποχρεωτικά πεδία νέας εγγραφής: Δίκτυο και Είδος Εργασίας. Εργατοώρες/μον. = ανθρωποώρες ανά μονάδα μέτρησης.',
+   '• Πηγή δείκτη: Εκτίμηση / Πραγματικά (από Ημερολόγιο Εργασιών) / ΑΤΗΕ / Βιβλιογραφία.',
+   '• Το φύλλο «Σύνοψη» υπολογίζεται αυτόματα με τύπους.',
+   '','Εξαγωγή: '+new Date().toLocaleString('el-GR')+' · εγγραφές: '+list.length
+  ].forEach((t,i)=>{const c=O.getCell(i+1,1);c.value=t;if(i===0)c.font={bold:true,size:14,color:{argb:HDR}};c.alignment={wrapText:true};});
+  return await wb.xlsx.writeBuffer();
+}
+
+async function wtWriteHandle(h,buf){
+  const w=await h.createWritable(); await w.write(buf); await w.close();
+}
+function wtDownload(buf,name){
+  const b=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name||WT_DEFAULT_NAME;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);
+}
+
+async function wtExportExcel(silent){
+  if(typeof ExcelJS==='undefined'){alert('Η βιβλιοθήκη Excel δεν φορτώθηκε (έλεγξε σύνδεση).');return;}
+  loading(true);
+  try{
+    if(!worktimes.length)await loadWorktimes();
+    let h=await wtGetHandle();
+    if(!h&&wtFsOk()&&!silent){h=await wtChooseFile();}
+    if(h){
+      if(!(await wtPerm(h))){alert('Δεν δόθηκε άδεια στο αρχείο '+h.name);return;}
+      // προστασία: μην χαθούν αλλαγές του Excel που δεν έχουν εισαχθεί
+      try{
+        const f=await h.getFile();
+        if(f.size>0){
+          const d=wtDiff(await wtParseWorkbook(await f.arrayBuffer()));
+          if(d.pending>0&&!confirm(`Το αρχείο ${h.name} έχει ${d.pending} αλλαγές που ΔΕΝ έχουν εισαχθεί στο πρόγραμμα (νέες: ${d.inserts.length}, διορθώσεις: ${d.updates.length+d.conflicts.length}, διαγραφές: ${d.deletes.length}).\n\nOK = αντικατάσταση του αρχείου (οι αλλαγές χάνονται)\nΆκυρο = διακοπή (κάνε πρώτα «Εισαγωγή Excel»)`))return;
+        }
+      }catch(e){console.warn('pre-check',e);}
+      try{await wtWriteHandle(h,await wtBuildWorkbook(worktimes));}
+      catch(e){alert('Δεν ήταν δυνατή η εγγραφή στο '+h.name+'.\nΠιθανόν είναι ανοιχτό στο Excel — κλείσ\' το και ξαναδοκίμασε.\n\n'+e.message);return;}
+      showToastSafe(`Αποθηκεύτηκε: ${h.name} (${worktimes.length} εγγραφές)`);
+    }else{
+      wtDownload(await wtBuildWorkbook(worktimes),WT_DEFAULT_NAME);
+      if(!silent)showToastSafe('Έγινε λήψη — αποθήκευσέ το στο X:\\Προσφορές\\Βάση Εργατοωρών');
+    }
+  }catch(e){console.error(e);alert('Σφάλμα εξαγωγής: '+e.message);}
+  finally{loading(false);}
+}
+
+async function wtImportExcel(){
+  if(typeof ExcelJS==='undefined'){alert('Η βιβλιοθήκη Excel δεν φορτώθηκε (έλεγξε σύνδεση).');return;}
+  const h=await wtGetHandle();
+  if(h&&confirm('Εισαγωγή από το αρχείο: '+h.name+' ;\n\n(Άκυρο = επιλογή άλλου αρχείου)')){
+    if(!(await wtPerm(h))){alert('Δεν δόθηκε άδεια στο αρχείο.');return;}
+    try{const f=await h.getFile();await wtApplyImport(await f.arrayBuffer(),true);}
+    catch(e){alert('Σφάλμα ανάγνωσης: '+e.message+'\n(Αν είναι ανοιχτό στο Excel, αποθήκευσέ το και ξαναδοκίμασε.)');}
+    return;
+  }
+  const inp=document.getElementById('wt-file-input'); inp.value=''; inp.click();
+}
+async function wtImportFromInput(inp){
+  const f=inp.files&&inp.files[0]; if(!f)return;
+  try{await wtApplyImport(await f.arrayBuffer(),false);}catch(e){alert('Σφάλμα: '+e.message);}
+}
+
+async function wtApplyImport(buf,fromHandle){
+  loading(true);
+  let d;
+  try{await loadWorktimes(); d=wtDiff(await wtParseWorkbook(buf));}
+  finally{loading(false);}
+  const lines=[
+    `Νέες εγγραφές: ${d.inserts.length}`,
+    `Διορθώσεις: ${d.updates.length}`,
+    `Διαγραφές (Χ): ${d.deletes.length}`,
+    d.conflicts.length?`⚠ Συγκρούσεις (άλλαξαν ΚΑΙ στο πρόγραμμα μετά την εξαγωγή): ${d.conflicts.length}`:'',
+    d.dupes?`Διπλότυπα που αγνοούνται: ${d.dupes}`:'',
+    d.gone.length?`Γραμμές με ID που έχει διαγραφεί στο πρόγραμμα (αγνοούνται): ${d.gone.length}`:'',
+    d.invalid.length?`Γραμμές χωρίς Δίκτυο/Είδος (αγνοούνται): ${d.invalid.map(x=>x._row).slice(0,15).join(', ')}`:'',
+    `Αμετάβλητες: ${d.same}`,
+    d.dbOnly?`Εγγραφές του προγράμματος που δεν υπάρχουν στο αρχείο (μένουν ως έχουν): ${d.dbOnly}`:''
+  ].filter(Boolean).join('\n');
+  if(!d.pending){alert('Δεν υπάρχουν αλλαγές για εισαγωγή.\n\n'+lines);if(fromHandle&&d.dbOnly)wtExportExcel(true);return;}
+  if(!confirm('Εισαγωγή από Excel\n\n'+lines+'\n\nΣυνέχεια;'))return;
+  let overwrite=false;
+  if(d.conflicts.length){
+    const list=d.conflicts.slice(0,8).map(c=>`• ${c.db.description}${c.db.size?' '+c.db.size:''}: `+Object.entries(c.ch).map(([k,v])=>`${k} ${c.db[k]??'—'} → ${v??'—'}`).join(', ')).join('\n');
+    overwrite=confirm(`${d.conflicts.length} εγγραφές άλλαξαν και στο πρόγραμμα και στο Excel:\n\n${list}${d.conflicts.length>8?'\n…':''}\n\nOK = κράτα τις τιμές του EXCEL\nΆκυρο = κράτα τις τιμές του ΠΡΟΓΡΑΜΜΑΤΟΣ`);
+  }
+  loading(true);
+  let ok=0,err=[];
+  const now=new Date().toISOString();
+  try{
+    if(d.inserts.length){
+      for(let i=0;i<d.inserts.length;i+=200){
+        const chunk=d.inserts.slice(i,i+200).map(r=>({...r,updated_at:now}));
+        try{await sbInsert('hm_worktimes',chunk);ok+=chunk.length;}catch(e){err.push('Εισαγωγή: '+e.message);}
+      }
+    }
+    for(const u of [...d.updates,...(overwrite?d.conflicts:[])]){
+      try{await sbUpdate('hm_worktimes',u.db.id,{...u.ch,updated_at:now});ok++;}catch(e){err.push(`Γραμμή ${u.x._row}: ${e.message}`);}
+    }
+    for(const x of d.deletes){
+      try{await sbDelete('hm_worktimes',x.id);ok++;}catch(e){err.push(`Διαγραφή γραμμής ${x._row}: ${e.message}`);}
+    }
+  }finally{loading(false);}
+  await loadWorktimes();
+  if(err.length)alert(`Ολοκληρώθηκαν ${ok} ενέργειες, ${err.length} σφάλματα:\n\n`+err.slice(0,10).join('\n')+(err.some(e=>/column/.test(e))?'\n\nΜήπως δεν έχει τρέξει το SQL επέκτασης του πίνακα;':''));
+  else showToastSafe(`Εισαγωγή ολοκληρώθηκε: ${ok} ενέργειες`);
+  // ξαναγράφουμε το αρχείο ώστε οι νέες γραμμές να πάρουν ID
+  if(fromHandle&&!err.length){try{const h=await wtGetHandle();if(h){await wtWriteHandle(h,await wtBuildWorkbook(worktimes));showToastSafe('Το αρχείο '+h.name+' ενημερώθηκε με τα νέα ID');}}catch(e){alert('Η βάση ενημερώθηκε, αλλά το αρχείο δεν ξαναγράφτηκε (ανοιχτό στο Excel;). Πάτα «Εξαγωγή Excel» όταν το κλείσεις.');}}
+  else if(!fromHandle&&!err.length&&d.inserts.length){alert('Οι νέες εγγραφές πήραν ID στη βάση. Πάτα «⬇ Εξαγωγή Excel» και αντικατέστησε το αρχείο, ώστε να μη διπλοεισαχθούν.');}
+}
+
 
 // ── Init ───────────────────────────────────────────────────────
 let allChecklistRows=[]; // global cache, refreshed on init and after toggles
@@ -2484,7 +2849,28 @@ init();
         </div>
       </div>
       <div class="fg"><label>Είδος Εργασίας</label>
-        <input class="fi" id="wt-desc" placeholder="π.χ. Τοποθέτηση σωλήνα PP-r Φ20, Εγκατάσταση FCU...">
+        <input class="fi" id="wt-desc" placeholder="π.χ. Τοποθέτηση σωλήνα PP-r, Εγκατάσταση FCU...">
+      </div>
+      <div class="fg2">
+        <div class="fg"><label>Διατομή / διάσταση</label>
+          <input class="fi" id="wt-size" placeholder="π.χ. Φ20, DN50, 1&quot;">
+        </div>
+        <div class="fg"><label>Πηγή δείκτη</label>
+          <select class="fs" id="wt-source">
+            <option>Εκτίμηση</option><option>Πραγματικά</option><option>ΑΤΗΕ</option><option>Βιβλιογραφία</option>
+          </select>
+        </div>
+      </div>
+      <div class="fg"><label>BoQ προέλευσης <span style="font-weight:400;color:var(--muted)">(αρχείο/τεύχος όπου υπολογίστηκε)</span></label>
+        <input class="fi" id="wt-boq" placeholder="π.χ. 2_κοστολόγιο PSext MEP_BoQ_rev00">
+      </div>
+      <div class="fg2">
+        <div class="fg"><label>Άρθρο BoQ</label>
+          <input class="fi" id="wt-article" placeholder="π.χ. Β.03.01.05">
+        </div>
+        <div class="fg"><label>Ημερομηνία υπολογισμού</label>
+          <input class="fi" id="wt-date" type="date">
+        </div>
       </div>
       <div class="fg"><label>Πρότυπο Έργο <span style="font-weight:400;color:var(--muted)">(από ποιο έργο προέκυψε)</span></label>
         <input class="fi" id="wt-ref-project" placeholder="π.χ. Sinsay Έδεσσα, LIDL Σίνδος...">
